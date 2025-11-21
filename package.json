@@ -12,6 +12,8 @@
   "type": "commonjs",
   "dependencies": {
     "ask-sdk-core": "^2.14.0",
-    "axios": "^1.13.2"
+    "axios": "^1.13.2",
+    "body-parser": "^2.2.0",
+    "express": "^5.1.0"
   }
 }

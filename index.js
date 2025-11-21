@@ -1,13 +1,20 @@
-// index.js
+const express = require('express');
+const bodyParser = require('body-parser');
 const Alexa = require('ask-sdk-core');
 const axios = require('axios');
 
+// ---------- INTENTS Y LÓGICA PRINCIPAL ---------- //
+
 const getCursosVigentes = async (usuario, contraseña) => {
     const payload = {
-        vigencia: 0, ordenado: 0, tipoUsuario: 0, idUsuarioMisFiltros: 0, visualizacion: 1
+        vigencia: 0,
+        ordenado: 0,
+        tipoUsuario: 0,
+        idUsuarioMisFiltros: 0,
+        visualizacion: 1
     };
-    // Aquí va la autenticación si es necesaria: cookies, headers, etc. (dependiendo de cómo sea en Eminus)
-    const response = await axios.post('https://eminus.uv.mx/eminusapi/api/Filtros/insFiltros', payload, {/*headers con auth*/});
+    // Agrega la autenticación/cookies si el endpoint lo requiere (headers, etc)
+    const response = await axios.post('https://eminus.uv.mx/eminusapi/api/Filtros/insFiltros', payload, {/*headers*/});
     return response.data; // lista de cursos vigentes
 };
 
@@ -15,7 +22,6 @@ const getActividadesPendientes = async (idUsuario, idCurso) => {
     const response = await axios.get(`https://eminus.uv.mx/eminusapi8/api/Activity/getActividadEstudiante/${idUsuario}/${idCurso}`);
     const actividades = response.data.contenido;
     const ahora = new Date();
-    // Filtrar tareas pendientes --> fecha no vencida y visible
     return actividades.filter(a =>
         new Date(a.fechaEntrega) > ahora && a.visible === 1
     );
@@ -26,18 +32,20 @@ const getNotificaciones = async (idUsuario) => {
     return response.data;
 };
 
-// Intent principal: pedir tareas pendientes
 const TareasPendientesIntentHandler = {
     canHandle(handlerInput) {
-        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
-            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'TareasPendientesIntent';
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
+            Alexa.getIntentName(handlerInput.requestEnvelope) === 'TareasPendientesIntent';
     },
     async handle(handlerInput) {
-        // Recuperar datos del usuario configurados por la app o base de datos
-        const { usuario, contraseña } = await handlerInput.attributesManager.getPersistentAttributes();
-        const cursos = await getCursosVigentes(usuario, contraseña);
+        // Simulación de credenciales de usuario. Para producción, obtén de una base de datos o user settings.
+        const usuario = 'TU_USUARIO';
+        const contraseña = 'TU_CONTRASEÑA';
 
+        const cursos = await getCursosVigentes(usuario, contraseña);
         let speakOutput = "Tus tareas pendientes son: ";
+
+        // Recorre los cursos y busca actividades pendientes
         for (let curso of cursos) {
             const actividades = await getActividadesPendientes(usuario, curso.idCurso);
             if (actividades.length > 0) {
@@ -47,40 +55,64 @@ const TareasPendientesIntentHandler = {
                 });
             }
         }
-        if (speakOutput === "Tus tareas pendientes son: ") speakOutput = "No tienes tareas pendientes en tus cursos vigentes.";
-        return handlerInput.responseBuilder.speak(speakOutput).getResponse();
+        if (speakOutput === "Tus tareas pendientes son: ") {
+            speakOutput = "No tienes tareas pendientes en tus cursos vigentes.";
+        }
+        return handlerInput.responseBuilder
+            .speak(speakOutput)
+            .getResponse();
     }
 };
 
-// Intent: pedir notificaciones
 const NotificacionesIntentHandler = {
     canHandle(handlerInput) {
-        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
-            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'NotificacionesIntent';
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
+            Alexa.getIntentName(handlerInput.requestEnvelope) === 'NotificacionesIntent';
     },
     async handle(handlerInput) {
-        const { usuario } = await handlerInput.attributesManager.getPersistentAttributes();
+        // Simulación de usuario. Obtén de settings o base de datos según implementación.
+        const usuario = 'TU_USUARIO';
+
         const notificaciones = await getNotificaciones(usuario);
 
         let speakOutput = "Resumen de novedades: ";
-        // Ejemplo para actividades/examenes
         if (notificaciones.actNuevas > 0)
             speakOutput += `Tienes ${notificaciones.actNuevas} actividades nuevas. `;
         if (notificaciones.exNuevos > 0)
             speakOutput += `Tienes ${notificaciones.exNuevos} exámenes nuevos. `;
-        // Repite para otros campos según lo que devuelva el endpoint
+        if (speakOutput === "Resumen de novedades: ")
+            speakOutput = "No tienes novedades nuevas en este momento.";
 
-        if (speakOutput === "Resumen de novedades: ") speakOutput = "No tienes novedades nuevas en este momento.";
-        return handlerInput.responseBuilder.speak(speakOutput).getResponse();
+        return handlerInput.responseBuilder
+            .speak(speakOutput)
+            .getResponse();
     }
 };
 
-// Otras funciones e intents necesarios...
+// ---------- EXPRESS APP PARA RENDER ---------- //
+const app = express();
+app.use(bodyParser.json());
 
-exports.handler = Alexa.SkillBuilders.custom()
+// SkillBuilder como servicio HTTP (no exports.handler)
+const skill = Alexa.SkillBuilders.custom()
     .addRequestHandlers(
         TareasPendientesIntentHandler,
         NotificacionesIntentHandler,
-        // otros handlers...
+        // más handlers si lo necesitas
     )
-    .lambda();
+    .create();
+
+app.post('/skill', (req, res) => {
+    skill.invoke(req.body)
+        .then((responseBody) => res.json(responseBody))
+        .catch((err) => {
+            console.error('Alexa Skill error:', err);
+            res.status(500).send('Alexa Skill error');
+        });
+});
+
+// Puerto Render
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log('Alexa Skill backend corriendo en Render en el puerto', PORT);
+});
