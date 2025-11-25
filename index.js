@@ -9,25 +9,19 @@ app.use(bodyParser.json());
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// -------- 1. Endpoint de autorización: muestra login web --------
+// -------- 1. Endpoint de autorización simplificado (sin formulario) --------
 app.get('/authorize', (req, res) => {
-    const { client_id, redirect_uri, state } = req.query;
-    res.render('login', { redirect_uri, state, client_id });
+    // Credenciales hardcodeadas para pruebas
+    const username = "zs23014164";
+    const fakeToken = "FAKE_ACCESS_TOKEN_EMINUS";
+    const { redirect_uri, state } = req.query;
+
+    // Genera code y redirige directamente
+    const code = Buffer.from(`${username}:${fakeToken}`).toString('base64');
+    res.redirect(`${redirect_uri}?code=${code}&state=${state}`);
 });
 
-// -------- 2. Recibe credenciales hardcodeadas, valida y redirige con code --------
-app.post('/auth', (req, res) => {
-    const { username, password, redirect_uri, state } = req.body;
-    if (username === "zs23014164" && password === "Vsdestroyer=185") {
-        const fakeToken = "FAKE_ACCESS_TOKEN_EMINUS";
-        const code = Buffer.from(`${username}:${fakeToken}`).toString('base64');
-        res.redirect(`${redirect_uri}?code=${code}&state=${state}`);
-    } else {
-        res.send('Login inválido. Revisa tu usuario y contraseña.');
-    }
-});
-
-// -------- 3. Token exchange endpoint (Alexa POST aquí) --------
+// -------- 2. Token exchange endpoint (Alexa POST aquí) --------
 app.post('/token', bodyParser.urlencoded({ extended: false }), (req, res) => {
     const { code } = req.body;
     const decoded = Buffer.from(code, 'base64').toString();
@@ -43,7 +37,7 @@ app.post('/token', bodyParser.urlencoded({ extended: false }), (req, res) => {
     }
 });
 
-// -------- 4. Skill handlers --------
+// -------- 3. Alexa Skill Handlers --------
 
 // Handler para LaunchRequest (al abrir la skill)
 const LaunchRequestHandler = {
@@ -51,7 +45,7 @@ const LaunchRequestHandler = {
         return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
     },
     handle(handlerInput) {
-        const speakOutput = "Bienvenido a Tareas Eminus. Puedes pedirme tus tareas pendientes o decir 'ayuda' para más opciones.";
+        const speakOutput = "Bienvenido a Tareas Eminus. Puedes pedirme tus tareas pendientes.";
         return handlerInput.responseBuilder
             .speak(speakOutput)
             .reprompt("¿Qué deseas hacer?")
@@ -59,7 +53,7 @@ const LaunchRequestHandler = {
     }
 };
 
-// Intent handler mock para Alexa
+// Handler para IntentRequest de tareas pendientes
 const TareasPendientesIntentHandler = {
     canHandle(handlerInput) {
         return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
@@ -101,6 +95,7 @@ const skill = Alexa.SkillBuilders.custom()
     )
     .create();
 
+// Endpoint de la skill que Alexa invoca
 app.post('/skill', (req, res) => {
     console.log("[IN] Pedido Alexa:", JSON.stringify(req.body, null, 2));
     skill.invoke(req.body)
@@ -111,7 +106,7 @@ app.post('/skill', (req, res) => {
         });
 });
 
-// -------- 5. Página principal --------
+// -------- 4. Página principal --------
 app.get('/', (req, res) => {
     res.send('Backend OAuth2 + Alexa Skill activo. DEMO hardcodeado.');
 });
