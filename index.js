@@ -1,6 +1,5 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const axios = require('axios');
 const path = require('path');
 const app = express();
 
@@ -14,48 +13,41 @@ app.get('/authorize', (req, res) => {
     res.render('login', { redirect_uri, state, client_id });
 });
 
-// -------- 2. Recibe credenciales, valida y redirige con código --------
-app.post('/auth', async (req, res) => {
+// -------- 2. Recibe credenciales hardcodeadas, valida y redirige con code --------
+app.post('/auth', (req, res) => {
     const { username, password, redirect_uri, state } = req.body;
-    try {
-        const eminusRes = await axios.post('https://eminus.uv.mx/eminusapi/api/auth', {
-            username, password
-        });
-        if (eminusRes.data.accessToken) {
-            // Genera un code único (puedes mejorar la seguridad usando DB)
-            const code = Buffer.from(`${username}:${eminusRes.data.accessToken}`).toString('base64');
-            // Redirige a Alexa con el code, como pide OAuth2
-            res.redirect(`${redirect_uri}?code=${code}&state=${state}`);
-        } else {
-            res.send('Login inválido. Revisa tu usuario y contraseña.');
-        }
-    } catch (err) {
-        res.send('Error al validar usuario.');
+    // Hardcodea tus datos únicos
+    if (username === "zs23014164" && password === "Vsdestroyer=185") {
+        const fakeToken = "FAKE_ACCESS_TOKEN_EMINUS";
+        const code = Buffer.from(`${username}:${fakeToken}`).toString('base64');
+        res.redirect(`${redirect_uri}?code=${code}&state=${state}`);
+    } else {
+        res.send('Login inválido. Revisa tu usuario y contraseña.');
     }
 });
 
 // -------- 3. Token exchange endpoint (Alexa POST aquí) --------
 app.post('/token', bodyParser.urlencoded({ extended: false }), (req, res) => {
-    const { code, client_id, client_secret, redirect_uri, grant_type } = req.body;
+    const { code } = req.body;
     const decoded = Buffer.from(code, 'base64').toString();
     const [username, accessToken] = decoded.split(':');
     if (accessToken) {
         res.json({
-            access_token: accessToken,
+            access_token: accessToken, // Siempre será FAKE_ACCESS_TOKEN_EMINUS
             token_type: "Bearer",
-            expires_in: 3600 // Puedes ajustar según el token de Eminus
+            expires_in: 3600
         });
     } else {
         res.status(400).json({ error: 'invalid_grant' });
     }
 });
 
-// -------- 4. Landing page básica o salud --------
+// -------- 4. Página principal --------
 app.get('/', (req, res) => {
-    res.send('Backend OAuth2 para Alexa Skill activo.');
+    res.send('Backend OAuth2 para Alexa Skill activo. DEMO hardcodeado.');
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`OAuth2 backend corriendo en el puerto ${PORT}`);
+    console.log(`OAuth2 backend DEMO corriendo en el puerto ${PORT}`);
 });
