@@ -5,7 +5,7 @@ const Alexa = require('ask-sdk-core');
 const app = express();
 
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json()); // Necesario para requests /skill
+app.use(bodyParser.json());
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
@@ -45,6 +45,20 @@ app.post('/token', bodyParser.urlencoded({ extended: false }), (req, res) => {
 
 // -------- 4. Skill handlers --------
 
+// Handler para LaunchRequest (al abrir la skill)
+const LaunchRequestHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
+    },
+    handle(handlerInput) {
+        const speakOutput = "Bienvenido a Tareas Eminus. Puedes pedirme tus tareas pendientes o decir 'ayuda' para más opciones.";
+        return handlerInput.responseBuilder
+            .speak(speakOutput)
+            .reprompt("¿Qué deseas hacer?")
+            .getResponse();
+    }
+};
+
 // Intent handler mock para Alexa
 const TareasPendientesIntentHandler = {
     canHandle(handlerInput) {
@@ -81,6 +95,7 @@ const FallbackHandler = {
 // SkillBuilder con handlers
 const skill = Alexa.SkillBuilders.custom()
     .addRequestHandlers(
+        LaunchRequestHandler,
         TareasPendientesIntentHandler,
         FallbackHandler // SIEMPRE AL FINAL
     )
