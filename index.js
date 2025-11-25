@@ -43,7 +43,7 @@ app.post('/token', bodyParser.urlencoded({ extended: false }), (req, res) => {
     }
 });
 
-// -------- 4. Skill handler (demo) --------
+// -------- 4. Skill handlers --------
 
 // Intent handler mock para Alexa
 const TareasPendientesIntentHandler = {
@@ -67,15 +67,27 @@ const TareasPendientesIntentHandler = {
     }
 };
 
-// Puedes agregar más handlers mock aquí...
+// Handler de Fallback para debug
+const FallbackHandler = {
+    canHandle(handlerInput) { return true; },
+    handle(handlerInput) {
+        console.log("[DEBUG]: Request desconocida:", JSON.stringify(handlerInput.requestEnvelope, null, 2));
+        return handlerInput.responseBuilder
+            .speak("Request no reconocida por el demo.")
+            .getResponse();
+    }
+};
+
+// SkillBuilder con handlers
 const skill = Alexa.SkillBuilders.custom()
     .addRequestHandlers(
-        TareasPendientesIntentHandler
-        // ... otros handlers como NotificacionesIntentHandler si los necesitas
+        TareasPendientesIntentHandler,
+        FallbackHandler // SIEMPRE AL FINAL
     )
     .create();
 
 app.post('/skill', (req, res) => {
+    console.log("[IN] Pedido Alexa:", JSON.stringify(req.body, null, 2));
     skill.invoke(req.body)
         .then((responseBody) => res.json(responseBody))
         .catch((err) => {
