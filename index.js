@@ -3,9 +3,16 @@ const bodyParser = require('body-parser');
 const Alexa = require('ask-sdk-core');
 const axios = require('axios');
 
-// ---------- INTENTS Y LÓGICA PRINCIPAL ---------- //
+// --------- INTENTS Y LÓGICA PRINCIPAL --------- //
 
-const getCursosVigentes = async (usuario, contraseña) => {
+const autenticarEminus = async (usuario, contraseña) => {
+    const payload = { username: usuario, password: contraseña };
+    const response = await axios.post('https://eminus.uv.mx/eminusapi/api/auth', payload);
+    // Devuelve el accessToken y otros datos útiles
+    return response.data;
+};
+
+const getCursosVigentes = async (token) => {
     const payload = {
         vigencia: 0,
         ordenado: 0,
@@ -13,13 +20,19 @@ const getCursosVigentes = async (usuario, contraseña) => {
         idUsuarioMisFiltros: 0,
         visualizacion: 1
     };
-    // Agrega la autenticación/cookies si el endpoint lo requiere (headers, etc)
-    const response = await axios.post('https://eminus.uv.mx/eminusapi/api/Filtros/insFiltros', payload, {/*headers*/});
-    return response.data; // lista de cursos vigentes
+    const response = await axios.post(
+        'https://eminus.uv.mx/eminusapi/api/Filtros/insFiltros', 
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data;
 };
 
-const getActividadesPendientes = async (idUsuario, idCurso) => {
-    const response = await axios.get(`https://eminus.uv.mx/eminusapi8/api/Activity/getActividadEstudiante/${idUsuario}/${idCurso}`);
+const getActividadesPendientes = async (token, idUsuario, idCurso) => {
+    const response = await axios.get(
+        `https://eminus.uv.mx/eminusapi8/api/Activity/getActividadEstudiante/${idUsuario}/${idCurso}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+    );
     const actividades = response.data.contenido;
     const ahora = new Date();
     return actividades.filter(a =>
@@ -27,27 +40,56 @@ const getActividadesPendientes = async (idUsuario, idCurso) => {
     );
 };
 
-const getNotificaciones = async (idUsuario) => {
-    const response = await axios.get(`https://eminus.uv.mx/eminusapi/api/Global/NotificacionesUsuario?idUsuario=${idUsuario}`);
+const getNotificaciones = async (token, idUsuario) => {
+    const response = await axios.get(
+        `https://eminus.uv.mx/eminusapi/api/Global/NotificacionesUsuario?idUsuario=${idUsuario}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+    );
     return response.data;
 };
 
+// --------- HANDLER PARA GUARDAR USUARIO Y CONTRASEÑA --------- //
+const ConfigurarUsuarioIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
+            Alexa.getIntentName(handlerInput.requestEnvelope) === 'ConfigurarUsuarioIntent';
+    },
+    async handle(handlerInput) {
+        const usuario = Alexa.getSlotValue(handlerInput.requestEnvelope, 'usuario');
+        const contraseña = Alexa.getSlotValue(handlerInput.requestEnvelope, 'contraseña');
+        await handlerInput.attributesManager.setPersistentAttributes({ usuario, contraseña });
+        await handlerInput.attributesManager.savePersistentAttributes();
+        return handlerInput.responseBuilder
+            .speak(`Tus datos han sido guardados, ${usuario}.`)
+            .getResponse();
+    }
+};
+
+// --------- HANDLER TAREAS PENDIENTES --------- //
 const TareasPendientesIntentHandler = {
     canHandle(handlerInput) {
         return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
             Alexa.getIntentName(handlerInput.requestEnvelope) === 'TareasPendientesIntent';
     },
     async handle(handlerInput) {
-        // Simulación de credenciales de usuario. Para producción, obtén de una base de datos o user settings.
-        const usuario = 'TU_USUARIO';
-        const contraseña = 'TU_CONTRASEÑA';
+        const atributos = await handlerInput.attributesManager.getPersistentAttributes();
+        const usuario = atributos.usuario;
+        const contraseña = atributos.contraseña;
 
-        const cursos = await getCursosVigentes(usuario, contraseña);
+        if (!usuario || !contraseña) {
+            return handlerInput.responseBuilder
+                .speak("Primero debes configurar tu usuario y contraseña. Di 'Mi usuario es ... y mi contraseña es ...'")
+                .getResponse();
+        }
+
+        const auth = await autenticarEminus(usuario, contraseña);
+        const token = auth.accessToken;
+
+        const cursos = await getCursosVigentes(token);
         let speakOutput = "Tus tareas pendientes son: ";
 
-        // Recorre los cursos y busca actividades pendientes
         for (let curso of cursos) {
-            const actividades = await getActividadesPendientes(usuario, curso.idCurso);
+            const actividades = await getActividadesPendientes(token, usuario, curso.idCurso);
             if (actividades.length > 0) {
                 speakOutput += `En el curso ${curso.nombre} tienes: `;
                 actividades.forEach(act => {
@@ -64,16 +106,27 @@ const TareasPendientesIntentHandler = {
     }
 };
 
+// --------- HANDLER NOTIFICACIONES --------- //
 const NotificacionesIntentHandler = {
     canHandle(handlerInput) {
         return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
             Alexa.getIntentName(handlerInput.requestEnvelope) === 'NotificacionesIntent';
     },
     async handle(handlerInput) {
-        // Simulación de usuario. Obtén de settings o base de datos según implementación.
-        const usuario = 'TU_USUARIO';
+        const atributos = await handlerInput.attributesManager.getPersistentAttributes();
+        const usuario = atributos.usuario;
+        const contraseña = atributos.contraseña;
 
-        const notificaciones = await getNotificaciones(usuario);
+        if (!usuario || !contraseña) {
+            return handlerInput.responseBuilder
+                .speak("Primero debes configurar tu usuario y contraseña. Di 'Mi usuario es ... y mi contraseña es ...'")
+                .getResponse();
+        }
+
+        const auth = await autenticarEminus(usuario, contraseña);
+        const token = auth.accessToken;
+
+        const notificaciones = await getNotificaciones(token, usuario);
 
         let speakOutput = "Resumen de novedades: ";
         if (notificaciones.actNuevas > 0)
@@ -89,16 +142,15 @@ const NotificacionesIntentHandler = {
     }
 };
 
-// ---------- EXPRESS APP PARA RENDER ---------- //
+// --------- EXPRESS APP PARA RENDER --------- //
 const app = express();
 app.use(bodyParser.json());
 
-// SkillBuilder como servicio HTTP (no exports.handler)
 const skill = Alexa.SkillBuilders.custom()
     .addRequestHandlers(
+        ConfigurarUsuarioIntentHandler,
         TareasPendientesIntentHandler,
-        NotificacionesIntentHandler,
-        // más handlers si lo necesitas
+        NotificacionesIntentHandler
     )
     .create();
 
@@ -111,7 +163,6 @@ app.post('/skill', (req, res) => {
         });
 });
 
-// Puerto Render
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log('Alexa Skill backend corriendo en Render en el puerto', PORT);
