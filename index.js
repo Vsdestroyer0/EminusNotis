@@ -207,6 +207,11 @@ const NotificacionesIntentHandler = {
                         }
                         
                     } catch (error) {
+                        // Si es error 404, ignorar y continuar con el siguiente curso
+                        if (error.response?.status === 404) {
+                            console.log(`ℹ️ Curso ${nombreCurso} no tiene actividades disponibles`);
+                            continue;
+                        }
                         console.error(`❌ Error obteniendo actividades del curso ${idCurso}:`, error.message);
                         // Continuar con el siguiente curso si hay error
                         continue;
@@ -224,7 +229,7 @@ const NotificacionesIntentHandler = {
             
             const speakOutput = tareas.length === 1 ? 
                 `Tienes ${tareas.length} tarea pendiente: ${tareas[0]}.` :
-                `Tienes ${tareas.length} tareas pendientes: ${tareas.join(', ')}.`;
+                `Tienes ${tareas.length} tareas pendientes: ${tareas.join('. ')}.`;
             
             return handlerInput.responseBuilder
                 .speak(speakOutput)
@@ -336,6 +341,11 @@ const TareasPendientesIntentHandler = {
                         }
                         
                     } catch (error) {
+                        // Si es error 404, ignorar y continuar con el siguiente curso
+                        if (error.response?.status === 404) {
+                            console.log(`ℹ️ Curso ${nombreCurso} no tiene actividades disponibles`);
+                            continue;
+                        }
                         console.error(`❌ Error obteniendo actividades del curso ${idCurso}:`, error.message);
                         // Continuar con el siguiente curso si hay error
                         continue;
@@ -353,7 +363,7 @@ const TareasPendientesIntentHandler = {
             
             const speakOutput = tareas.length === 1 ? 
                 `Tienes ${tareas.length} tarea pendiente: ${tareas[0]}.` :
-                `Tienes ${tareas.length} tareas pendientes: ${tareas.join(', ')}.`;
+                `Tienes ${tareas.length} tareas pendientes: ${tareas.join('. ')}.`;
             
             return handlerInput.responseBuilder
                 .speak(speakOutput)
