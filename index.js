@@ -113,7 +113,7 @@ const TareasPendientesIntentHandler = {
         if (!token) {
             return handlerInput.responseBuilder
                 .speak("Primero debes vincular tu cuenta de Eminus en la app de Alexa.")
-                .withAskForPermissionsConsentCard(['alexa::profile:email'])
+                .withLinkAccountCard()
                 .getResponse();
         }
         
