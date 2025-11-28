@@ -9,6 +9,9 @@ app.use(bodyParser.json());
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+// Servir archivos estáticos
+app.use(express.static(path.join(__dirname, 'public')));
+
 // -------- 1. Endpoint de autorización simplificado (sin formulario) --------
 app.get('/authorize', (req, res) => {
     // Credenciales hardcodeadas para pruebas
@@ -21,7 +24,17 @@ app.get('/authorize', (req, res) => {
     res.redirect(`${redirect_uri}?code=${code}&state=${state}`);
 });
 
-// -------- 2. Token exchange endpoint (Alexa POST aquí) --------
+// -------- 2. Página callback para OAuth --------
+app.get('/callback', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'callback.html'));
+});
+
+// -------- 3. Página principal --------
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// -------- 4. Token exchange endpoint (Alexa POST aquí) --------
 app.post('/token', bodyParser.urlencoded({ extended: false }), (req, res) => {
     const { code } = req.body;
     const decoded = Buffer.from(code, 'base64').toString();
@@ -61,17 +74,43 @@ const TareasPendientesIntentHandler = {
     },
     async handle(handlerInput) {
         const token = handlerInput.requestEnvelope.context.System.user.accessToken;
-        if (!token || token !== "FAKE_ACCESS_TOKEN_EMINUS") {
+        
+        if (!token) {
             return handlerInput.responseBuilder
-                .speak("Primero debes vincular tu cuenta en la app de Alexa.")
+                .speak("Primero debes vincular tu cuenta de Eminus en la app de Alexa.")
+                .withAskForPermissionsConsentCard(['alexa::profile:email'])
+                .getResponse();
+        }
+        
+        if (token !== "FAKE_ACCESS_TOKEN_EMINUS") {
+            return handlerInput.responseBuilder
+                .speak("El token de acceso no es válido. Por favor, vincula tu cuenta nuevamente.")
                 .withLinkAccountCard()
                 .getResponse();
         }
-        // Simulamos respuesta demo
-        const speakOutput = "Tus tareas pendientes son: Actividad 1 para el 29 de noviembre, Actividad 2 para el 1 de diciembre.";
-        return handlerInput.responseBuilder
-            .speak(speakOutput)
-            .getResponse();
+        
+        try {
+            // Aquí iría la lógica real para obtener tareas del API de Eminus
+            // Por ahora simulamos una respuesta
+            const tareas = [
+                "Actividad 1 para el 29 de noviembre",
+                "Actividad 2 para el 1 de diciembre", 
+                "Examen final para el 5 de diciembre"
+            ];
+            
+            const speakOutput = `Tienes ${tareas.length} tareas pendientes: ${tareas.join(', ')}.`;
+            
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt("¿Quieres conocer los detalles de alguna tarea específica?")
+                .getResponse();
+                
+        } catch (error) {
+            console.error('Error obteniendo tareas:', error);
+            return handlerInput.responseBuilder
+                .speak("Hubo un error al obtener tus tareas. Por favor, intenta nuevamente más tarde.")
+                .getResponse();
+        }
     }
 };
 
@@ -106,8 +145,26 @@ app.post('/skill', (req, res) => {
         });
 });
 
-// -------- 4. Página principal --------
-app.get('/', (req, res) => {
+// -------- 5. Endpoint para verificar token (opcional) --------
+app.post('/verify-token', (req, res) => {
+    const { accessToken } = req.body;
+    
+    if (accessToken === "FAKE_ACCESS_TOKEN_EMINUS") {
+        res.json({ 
+            valid: true, 
+            username: "zs23014164",
+            message: "Token válido" 
+        });
+    } else {
+        res.status(401).json({ 
+            valid: false, 
+            message: "Token inválido" 
+        });
+    }
+});
+
+// -------- 6. Página principal (mantenida por compatibilidad) --------
+app.get('/demo', (req, res) => {
     res.send('Backend OAuth2 + Alexa Skill activo. DEMO hardcodeado.');
 });
 

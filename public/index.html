@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eminus Skill - Alexa</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .login-btn {
+            background-color: #007bff;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        .login-btn:hover {
+            background-color: #0056b3;
+        }
+        .login-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Skill de Tareas Eminus para Alexa</h1>
+        <p>Conecta tu cuenta de Eminus para usar la skill de Alexa</p>
+        
+        <button id="loginEminus" class="login-btn">
+            Iniciar sesión con Eminus
+        </button>
+        
+        <div id="status" class="status" style="display: none;"></div>
+    </div>
+
+    <script>
+        let accessToken = null;
+
+        document.getElementById('loginEminus').addEventListener('click', function() {
+            const statusDiv = document.getElementById('status');
+            const loginBtn = document.getElementById('loginEminus');
+            
+            // Mostrar estado de carga
+            statusDiv.className = 'status info';
+            statusDiv.textContent = 'Abriendo ventana de autenticación...';
+            statusDiv.style.display = 'block';
+            loginBtn.disabled = true;
+
+            // URL de tu backend para OAuth
+            const loginUrl = 'http://localhost:3000/authorize?redirect_uri=' + 
+                           encodeURIComponent('http://localhost:3000/callback') + 
+                           '&state=' + Math.random().toString(36).substring(7);
+            
+            const width = 500;
+            const height = 600;
+            const left = (screen.width/2)-(width/2);
+            const top = (screen.height/2)-(height/2);
+
+            // Abrimos el popup
+            const popup = window.open(loginUrl, 'EminusLogin', 
+                `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,resizable=yes`);
+
+            // Timeout por si el usuario cierra la ventana
+            const checkClosed = setInterval(() => {
+                if (popup.closed) {
+                    clearInterval(checkClosed);
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = 'Autenticación cancelada o fallida';
+                    loginBtn.disabled = false;
+                }
+            }, 1000);
+        });
+
+        // Escuchar mensajes del popup
+        window.addEventListener('message', function(event) {
+            // Validar origen (en producción, reemplaza con tu dominio)
+            // if (event.origin !== 'http://localhost:3000') return;
+
+            const statusDiv = document.getElementById('status');
+            const loginBtn = document.getElementById('loginEminus');
+
+            if (event.data.accessToken) {
+                accessToken = event.data.accessToken;
+                
+                // Guardar token
+                localStorage.setItem('eminusAccessToken', accessToken);
+                
+                // Mostrar éxito
+                statusDiv.className = 'status success';
+                statusDiv.textContent = '¡Autenticación exitosa! Tu cuenta está vinculada.';
+                loginBtn.textContent = 'Cuenta vinculada';
+                loginBtn.disabled = true;
+                
+                console.log('Token recibido:', accessToken);
+                
+                // Opcional: Enviar token al backend
+                sendTokenToBackend(accessToken);
+            } else if (event.data.error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = 'Error: ' + event.data.error;
+                loginBtn.disabled = false;
+            }
+        });
+
+        function sendTokenToBackend(token) {
+            fetch('http://localhost:3000/verify-token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ accessToken: token })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Token verificado en backend:', data);
+            })
+            .catch(error => {
+                console.error('Error verificando token:', error);
+            });
+        }
+
+        // Verificar si ya hay un token guardado
+        window.onload = function() {
+            const savedToken = localStorage.getItem('eminusAccessToken');
+            if (savedToken) {
+                accessToken = savedToken;
+                const statusDiv = document.getElementById('status');
+                const loginBtn = document.getElementById('loginEminus');
+                
+                statusDiv.className = 'status success';
+                statusDiv.textContent = 'Ya tienes una cuenta vinculada';
+                statusDiv.style.display = 'block';
+                loginBtn.textContent = 'Cuenta ya vinculada';
+                loginBtn.disabled = true;
+            }
+        };
+    </script>
+</body>
+</html>
