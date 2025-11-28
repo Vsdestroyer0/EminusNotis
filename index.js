@@ -227,13 +227,16 @@ const NotificacionesIntentHandler = {
                 tareas = tareas.slice(0, 5);
             }
 
-            // Texto para voz (Alexa habla con frases separadas por puntos)
-            const speakOutput = tareas.length === 1 ? 
-                `Tienes ${tareas.length} tarea pendiente: ${tareas[0]}.` :
-                `Tienes ${tareas.length} tareas pendientes: ${tareas.join('. ')}.`;
+            // Enumerar tareas: 1.- ..., 2.- ...
+            const tareasEnumeradas = tareas.map((t, idx) => `${idx + 1}.- ${t}`);
 
-            // Texto para la app, con saltos de línea por actividad
-            const cardText = tareas.join('\n');
+            // Texto para voz (Alexa habla con frases separadas por puntos)
+            const speakOutput = tareasEnumeradas.length === 1 ? 
+                `Tienes ${tareasEnumeradas.length} tarea pendiente: ${tareasEnumeradas[0]}.` :
+                `Tienes ${tareasEnumeradas.length} tareas pendientes: ${tareasEnumeradas.join('. ')}.`;
+
+            // Texto para la app, con saltos de línea por actividad enumerada
+            const cardText = tareasEnumeradas.join('\n');
             
             return handlerInput.responseBuilder
                 .speak(speakOutput)
