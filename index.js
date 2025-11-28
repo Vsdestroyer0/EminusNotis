@@ -16,6 +16,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/authorize', (req, res) => {
     // Credenciales hardcodeadas para pruebas
     const username = "zs23014164";
+    const contraseña = "Y1k8Z77e3Bt5Gz6NVvZ8qNuOy2WgLKnGHfRerpfP2ngfLP9QwrCmDb87C0G2Hk5J"
     const fakeToken = "FAKE_ACCESS_TOKEN_EMINUS";
     const { redirect_uri, state } = req.query;
 
@@ -24,7 +25,28 @@ app.get('/authorize', (req, res) => {
     res.redirect(`${redirect_uri}?code=${code}&state=${state}`);
 });
 
-// -------- 2. Página callback para OAuth --------
+// -------- 2. Endpoint de autenticación real --------
+app.post('/auth', async (req, res) => {
+    const { username, password, redirect_uri, state } = req.body;
+    
+    try {
+        // Llamada a la API de Eminus
+        const response = await axios.post('https://eminus.uv.mx/eminusapi/api/auth', {
+            username: username,
+            password: password
+        });
+        
+        // Genera code con el token real de Eminus
+        const code = Buffer.from(`${username}:${response.data.accessToken}`).toString('base64');
+        res.redirect(`${redirect_uri}?code=${code}&state=${state}`);
+        
+    } catch (error) {
+        console.error('Error en autenticación:', error.response?.data || error.message);
+        res.status(401).send('Credenciales inválidas');
+    }
+});
+
+// -------- 3. Página callback para OAuth --------
 app.get('/callback', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'callback.html'));
 });
@@ -35,17 +57,30 @@ app.get('/', (req, res) => {
 });
 
 // -------- 4. Token exchange endpoint (Alexa POST aquí) --------
-app.post('/token', bodyParser.urlencoded({ extended: false }), (req, res) => {
+app.post('/token', bodyParser.urlencoded({ extended: false }), async (req, res) => {
     const { code } = req.body;
     const decoded = Buffer.from(code, 'base64').toString();
-    const [username, accessToken] = decoded.split(':');
-    if (accessToken) {
+    const [username, password] = decoded.split(':');
+    
+    if (!username || !password) {
+        res.status(400).json({ error: 'invalid_grant' });
+        return;
+    }
+    
+    try {
+        // Llamada real a la API de Eminus
+        const response = await axios.post('https://eminus.uv.mx/eminusapi/api/auth', {
+            username: username,
+            password: password
+        });
+        
         res.json({
-            access_token: accessToken,
+            access_token: response.data.accessToken,
             token_type: "Bearer",
             expires_in: 3600
         });
-    } else {
+    } catch (error) {
+        console.error('Error en autenticación Eminus:', error.response?.data || error.message);
         res.status(400).json({ error: 'invalid_grant' });
     }
 });
@@ -79,13 +114,6 @@ const TareasPendientesIntentHandler = {
             return handlerInput.responseBuilder
                 .speak("Primero debes vincular tu cuenta de Eminus en la app de Alexa.")
                 .withAskForPermissionsConsentCard(['alexa::profile:email'])
-                .getResponse();
-        }
-        
-        if (token !== "FAKE_ACCESS_TOKEN_EMINUS") {
-            return handlerInput.responseBuilder
-                .speak("El token de acceso no es válido. Por favor, vincula tu cuenta nuevamente.")
-                .withLinkAccountCard()
                 .getResponse();
         }
         
