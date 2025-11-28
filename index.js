@@ -121,6 +121,9 @@ const TareasPendientesIntentHandler = {
             && Alexa.getIntentName(handlerInput.requestEnvelope) === 'TareasPendientesIntent';
     },
     async handle(handlerInput) {
+        // Importar axios dentro del handler para asegurar disponibilidad
+        const axios = require('axios');
+        
         // Temporalmente sin verificar token para pruebas
         // const token = handlerInput.requestEnvelope.context.System.user.accessToken;
         
