@@ -143,8 +143,11 @@ const NotificacionesIntentHandler = {
             console.log('✅ Cursos obtenidos:', coursesResponse.data);
             
             // Extraer información relevante de los cursos
-            const cursos = coursesResponse.data;
+            const cursosData = coursesResponse.data;
+            const cursos = cursosData.contenido || []; // Acceder al array contenido
             let tareas = [];
+            
+            console.log(`✅ Total de cursos recibidos: ${cursos.length}`);
             
             if (cursos && cursos.length > 0) {
                 // Filtrar solo cursos favoritos (activos)
@@ -155,11 +158,18 @@ const NotificacionesIntentHandler = {
                 
                 console.log(`✅ Cursos favoritos encontrados: ${cursosFavoritos.length}`);
                 
+                // Mostrar detalles de cursos favoritos para debugging
+                cursosFavoritos.forEach((cursoData, index) => {
+                    console.log(`📚 Curso ${index + 1}: ${cursoData.curso?.nombre} (ID: ${cursoData.curso?.idCurso})`);
+                });
+                
                 // Obtener actividades de cada curso favorito
                 for (const cursoData of cursosFavoritos) {
                     const curso = cursoData.curso;
                     const idCurso = curso.idCurso;
                     const nombreCurso = curso.nombre;
+                    
+                    console.log(`🔍 Procesando curso: ${nombreCurso} (ID: ${idCurso})`);
                     
                     try {
                         // Obtener actividades del curso
@@ -173,10 +183,9 @@ const NotificacionesIntentHandler = {
                         );
                         
                         const actividades = actividadesResponse.data.contenido || [];
+                        console.log(`📋 Actividades encontradas en ${nombreCurso}: ${actividades.length}`);
                         
                         if (actividades.length > 0) {
-                            console.log(`✅ Curso ${nombreCurso}: ${actividades.length} actividades`);
-                            
                             // Procesar cada actividad para obtener detalles
                             for (const actividad of actividades) {
                                 const titulo = actividad.titulo || 'Actividad sin título';
@@ -185,11 +194,16 @@ const NotificacionesIntentHandler = {
                                     'sin fecha';
                                 const estadoAct = actividad.estadoAct || 0;
                                 
+                                console.log(`📝 Actividad: "${titulo}" - Estado: ${estadoAct} - Fecha: ${fechaTermino}`);
+                                
                                 // Estado 2 = pendiente, otros estados = completada/entregada
                                 if (estadoAct === 2) {
                                     tareas.push(`${titulo} del curso ${nombreCurso} para el ${fechaTermino}`);
+                                    console.log(`✅ Tarea pendiente agregada: ${titulo}`);
                                 }
                             }
+                        } else {
+                            console.log(`ℹ️ No hay actividades en el curso ${nombreCurso}`);
                         }
                         
                     } catch (error) {
@@ -258,8 +272,11 @@ const TareasPendientesIntentHandler = {
             console.log('✅ Cursos obtenidos:', coursesResponse.data);
             
             // Extraer información relevante de los cursos
-            const cursos = coursesResponse.data;
+            const cursosData = coursesResponse.data;
+            const cursos = cursosData.contenido || []; // Acceder al array contenido
             let tareas = [];
+            
+            console.log(`✅ Total de cursos recibidos: ${cursos.length}`);
             
             if (cursos && cursos.length > 0) {
                 // Filtrar solo cursos favoritos (activos)
@@ -270,11 +287,18 @@ const TareasPendientesIntentHandler = {
                 
                 console.log(`✅ Cursos favoritos encontrados: ${cursosFavoritos.length}`);
                 
+                // Mostrar detalles de cursos favoritos para debugging
+                cursosFavoritos.forEach((cursoData, index) => {
+                    console.log(`📚 Curso ${index + 1}: ${cursoData.curso?.nombre} (ID: ${cursoData.curso?.idCurso})`);
+                });
+                
                 // Obtener actividades de cada curso favorito
                 for (const cursoData of cursosFavoritos) {
                     const curso = cursoData.curso;
                     const idCurso = curso.idCurso;
                     const nombreCurso = curso.nombre;
+                    
+                    console.log(`🔍 Procesando curso: ${nombreCurso} (ID: ${idCurso})`);
                     
                     try {
                         // Obtener actividades del curso
@@ -288,10 +312,9 @@ const TareasPendientesIntentHandler = {
                         );
                         
                         const actividades = actividadesResponse.data.contenido || [];
+                        console.log(`📋 Actividades encontradas en ${nombreCurso}: ${actividades.length}`);
                         
                         if (actividades.length > 0) {
-                            console.log(`✅ Curso ${nombreCurso}: ${actividades.length} actividades`);
-                            
                             // Procesar cada actividad para obtener detalles
                             for (const actividad of actividades) {
                                 const titulo = actividad.titulo || 'Actividad sin título';
@@ -300,11 +323,16 @@ const TareasPendientesIntentHandler = {
                                     'sin fecha';
                                 const estadoAct = actividad.estadoAct || 0;
                                 
+                                console.log(`📝 Actividad: "${titulo}" - Estado: ${estadoAct} - Fecha: ${fechaTermino}`);
+                                
                                 // Estado 2 = pendiente, otros estados = completada/entregada
                                 if (estadoAct === 2) {
                                     tareas.push(`${titulo} del curso ${nombreCurso} para el ${fechaTermino}`);
+                                    console.log(`✅ Tarea pendiente agregada: ${titulo}`);
                                 }
                             }
+                        } else {
+                            console.log(`ℹ️ No hay actividades en el curso ${nombreCurso}`);
                         }
                         
                     } catch (error) {
