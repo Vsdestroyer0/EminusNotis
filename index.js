@@ -229,7 +229,7 @@ const NotificacionesIntentHandler = {
             
             const speakOutput = tareas.length === 1 ? 
                 `Tienes ${tareas.length} tarea pendiente: ${tareas[0]}.` :
-                `Tienes ${tareas.length} tareas pendientes: ${tareas.join('. ')}.`;
+                `Tienes ${tareas.length} tareas pendientes: <p>${tareas.join('</p><p>')}</p>.`;
             
             return handlerInput.responseBuilder
                 .speak(speakOutput)
@@ -363,7 +363,7 @@ const TareasPendientesIntentHandler = {
             
             const speakOutput = tareas.length === 1 ? 
                 `Tienes ${tareas.length} tarea pendiente: ${tareas[0]}.` :
-                `Tienes ${tareas.length} tareas pendientes: ${tareas.join('. ')}.`;
+                `Tienes ${tareas.length} tareas pendientes: <p>${tareas.join('</p><p>')}</p>.`;
             
             return handlerInput.responseBuilder
                 .speak(speakOutput)
