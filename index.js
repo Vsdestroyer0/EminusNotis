@@ -2,6 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const path = require('path');
 const Alexa = require('ask-sdk-core');
+const axios = require('axios'); // Mover aquí para que esté disponible globalmente
 const app = express();
 
 app.use(bodyParser.urlencoded({ extended: true }));
