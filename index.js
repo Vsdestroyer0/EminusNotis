@@ -226,13 +226,18 @@ const NotificacionesIntentHandler = {
                 // Limitar a 5 tareas para no hacer muy larga la respuesta
                 tareas = tareas.slice(0, 5);
             }
-            
+
+            // Texto para voz (Alexa habla con frases separadas por puntos)
             const speakOutput = tareas.length === 1 ? 
                 `Tienes ${tareas.length} tarea pendiente: ${tareas[0]}.` :
-                `Tienes ${tareas.length} tareas pendientes: <p>${tareas.join('</p><p>')}</p>.`;
+                `Tienes ${tareas.length} tareas pendientes: ${tareas.join('. ')}.`;
+
+            // Texto para la app, con saltos de línea por actividad
+            const cardText = tareas.join('\n');
             
             return handlerInput.responseBuilder
                 .speak(speakOutput)
+                .withSimpleCard('Tareas Eminus', cardText)
                 .reprompt("¿Quieres conocer los detalles de alguna tarea específica?")
                 .getResponse();
                 
