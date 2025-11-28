@@ -120,17 +120,19 @@ const TareasPendientesIntentHandler = {
             && Alexa.getIntentName(handlerInput.requestEnvelope) === 'TareasPendientesIntent';
     },
     async handle(handlerInput) {
-        const token = handlerInput.requestEnvelope.context.System.user.accessToken;
-        
-        if (!token) {
-            return handlerInput.responseBuilder
-                .speak("Primero debes vincular tu cuenta de Eminus en la app de Alexa.")
-                .withLinkAccountCard()
-                .getResponse();
-        }
+        // Temporalmente sin verificar token para pruebas
+        // const token = handlerInput.requestEnvelope.context.System.user.accessToken;
         
         try {
-            // Aquí iría la lógica real para obtener tareas del API de Eminus
+            // Llamada directa a Eminus API con credenciales hardcodeadas
+            const response = await axios.post('https://eminus.uv.mx/eminusapi/api/auth', {
+                username: "zs23014164",
+                password: "Y1k8Z77e3Bt5Gz6NVvZ8qNuOy2WgLKnGHfRerpfP2ngfLP9QwrCmDb87C0G2Hk5J"
+            });
+            
+            console.log('✅ Token obtenido directamente de Eminus');
+            
+            // Aquí iría la lógica para obtener tareas con el token
             // Por ahora simulamos una respuesta
             const tareas = [
                 "Actividad 1 para el 29 de noviembre",
@@ -146,9 +148,9 @@ const TareasPendientesIntentHandler = {
                 .getResponse();
                 
         } catch (error) {
-            console.error('Error obteniendo tareas:', error);
+            console.error('❌ Error obteniendo token de Eminus:', error.response?.data || error.message);
             return handlerInput.responseBuilder
-                .speak("Hubo un error al obtener tus tareas. Por favor, intenta nuevamente más tarde.")
+                .speak("Hubo un error al conectar con Eminus. Por favor, intenta nuevamente más tarde.")
                 .getResponse();
         }
     }
