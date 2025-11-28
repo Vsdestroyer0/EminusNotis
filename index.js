@@ -16,12 +16,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/authorize', (req, res) => {
     // Credenciales hardcodeadas para pruebas
     const username = "zs23014164";
-    const contraseña = "Y1k8Z77e3Bt5Gz6NVvZ8qNuOy2WgLKnGHfRerpfP2ngfLP9QwrCmDb87C0G2Hk5J"
-    const fakeToken = "FAKE_ACCESS_TOKEN_EMINUS";
+    const password = "Y1k8Z77e3Bt5Gz6NVvZ8qNuOy2WgLKnGHfRerpfP2ngfLP9QwrCmDb87C0G2Hk5J"
     const { redirect_uri, state } = req.query;
 
-    // Genera code y redirige directamente
-    const code = Buffer.from(`${username}:${fakeToken}`).toString('base64');
+    // Genera code con credenciales reales
+    const code = Buffer.from(`${username}:${password}`).toString('base64');
     res.redirect(`${redirect_uri}?code=${code}&state=${state}`);
 });
 
@@ -68,11 +67,13 @@ app.post('/token', bodyParser.urlencoded({ extended: false }), async (req, res) 
     }
     
     try {
-        // Llamada real a la API de Eminus
+        // Llamada real a la API de Eminus con credenciales hardcodeadas
         const response = await axios.post('https://eminus.uv.mx/eminusapi/api/auth', {
             username: username,
             password: password
         });
+        
+        console.log('✅ Autenticación exitosa con Eminus para usuario:', username);
         
         res.json({
             access_token: response.data.accessToken,
@@ -80,8 +81,19 @@ app.post('/token', bodyParser.urlencoded({ extended: false }), async (req, res) 
             expires_in: 3600
         });
     } catch (error) {
-        console.error('Error en autenticación Eminus:', error.response?.data || error.message);
-        res.status(400).json({ error: 'invalid_grant' });
+        console.error('❌ Error en autenticación Eminus:', error.response?.data || error.message);
+        
+        if (error.response?.status === 401) {
+            res.status(401).json({ 
+                error: 'invalid_grant',
+                error_description: 'Credenciales inválidas en Eminus'
+            });
+        } else {
+            res.status(500).json({ 
+                error: 'server_error',
+                error_description: 'Error al conectar con Eminus API'
+            });
+        }
     }
 });
 
