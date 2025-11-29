@@ -193,11 +193,13 @@ const NotificacionesIntentHandler = {
                                     new Date(actividad.fechaTermino).toLocaleDateString('es-MX') : 
                                     'sin fecha';
                                 const estadoAct = actividad.estadoAct || 0;
+                                const estadoEntrega = actividad.estadoEntrega;
+                                const estado = actividad.estado;
                                 
-                                console.log(`📝 Actividad: "${titulo}" - Estado: ${estadoAct} - Fecha: ${fechaTermino}`);
+                                console.log(`📝 Actividad: "${titulo}" - EstadoAct: ${estadoAct} - EstadoEntrega: ${estadoEntrega} - Estado: ${estado} - Fecha: ${fechaTermino}`);
                                 
-                                // Estado 2 = pendiente, otros estados = completada/entregada
-                                if (estadoAct === 2) {
+                                // Considerar pendiente solo si no ha sido entregada (estadoEntrega y estado en null)
+                                if (estadoEntrega == null && estado == null && estadoAct === 2) {
                                     tareas.push(`${titulo} del curso ${nombreCurso} para el ${fechaTermino}`);
                                     console.log(`✅ Tarea pendiente agregada: ${titulo}`);
                                 }
