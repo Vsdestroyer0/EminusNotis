@@ -21,6 +21,39 @@ const EMINUS_ENDPOINTS = {
     ACTIVITY_DETAIL: (idCurso, idActividad) => `${EMINUS_CONFIG.API8_URL}/api/Activity/getActividadEstudiante/${idCurso}/${idActividad}`
 };
 
+const HTML_ENTITY_MAP = {
+    '&nbsp;': ' ',
+    '&amp;': '&',
+    '&quot;': '"',
+    '&#39;': "'",
+    '&apos;': "'",
+    '&lt;': '<',
+    '&gt;': '>',
+    '&aacute;': 'á',
+    '&eacute;': 'é',
+    '&iacute;': 'í',
+    '&oacute;': 'ó',
+    '&uacute;': 'ú',
+    '&Aacute;': 'Á',
+    '&Eacute;': 'É',
+    '&Iacute;': 'Í',
+    '&Oacute;': 'Ó',
+    '&Uacute;': 'Ú',
+    '&ntilde;': 'ñ',
+    '&Ntilde;': 'Ñ',
+    '&uuml;': 'ü',
+    '&Uuml;': 'Ü',
+    '&iexcl;': '¡',
+    '&iquest;': '¿'
+};
+
+function decodeHtmlEntities(text = '') {
+    return text
+        .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+        .replace(/&[a-zA-Z]+;/g, (entity) => HTML_ENTITY_MAP[entity] || entity);
+}
+
 const app = express();
 
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -373,8 +406,8 @@ const DetallesTareaIntentHandler = {
             
             // Descripción (limpiar HTML)
             let descripcion = actividad.descripcion || '';
-            // Eliminar etiquetas HTML para voz
-            descripcion = descripcion.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+            descripcion = descripcion.replace(/<[^>]*>/g, '');
+            descripcion = decodeHtmlEntities(descripcion);
             descripcion = descripcion.substring(0, 200) + (descripcion.length > 200 ? '...' : '');
             respuesta += `Descripción: ${descripcion}. `;
             
