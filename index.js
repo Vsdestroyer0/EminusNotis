@@ -18,7 +18,10 @@ const EMINUS_ENDPOINTS = {
     AUTH: `${EMINUS_CONFIG.API_URL}/api/auth`,
     COURSES: `${EMINUS_CONFIG.API8_URL}/api/Course/getAllCourses`,
     ACTIVITIES: (idCurso) => `${EMINUS_CONFIG.API8_URL}/api/Activity/getActividadesEstudiante/${idCurso}`,
-    ACTIVITY_DETAIL: (idCurso, idActividad) => `${EMINUS_CONFIG.API8_URL}/api/Activity/getActividadEstudiante/${idCurso}/${idActividad}`
+    ACTIVITY_DETAIL: (idCurso, idActividad) => `${EMINUS_CONFIG.API8_URL}/api/Activity/getActividadEstudiante/${idCurso}/${idActividad}`,
+    COURSE_MEMBERS: (idCurso) => `${EMINUS_CONFIG.API_URL}/api/Usuario/getIntegrantes/${idCurso}`,
+    COURSE_MODULES: (idCurso, parentId = 0) => `${EMINUS_CONFIG.API_URL}/api/Contenido/getUnidades/${idCurso}/${parentId}`,
+    COURSE_EXAMS: (idCurso) => `${EMINUS_CONFIG.API_URL}/api/Examen/getExamenesEst/${idCurso}`
 };
 
 const HTML_ENTITY_MAP = {
@@ -52,6 +55,23 @@ function decodeHtmlEntities(text = '') {
         .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
         .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
         .replace(/&[a-zA-Z]+;/g, (entity) => HTML_ENTITY_MAP[entity] || entity);
+}
+
+function formatProfessorName(member = {}) {
+    const parts = [member.nombre, member.paterno, member.materno].filter(Boolean);
+    if (parts.length > 0) {
+        return parts.join(' ');
+    }
+    return member.nombreCompleto || 'Docente sin nombre';
+}
+
+function normalizeInfoType(rawValue = '') {
+    const value = rawValue.toLowerCase();
+    if (value.includes('prof')) return 'profesor';
+    if (value.includes('mód') || value.includes('modul')) return 'modulos';
+    if (value.includes('exam')) return 'examenes';
+    if (value.includes('actividad') || value.includes('tarea')) return 'actividades';
+    return null;
 }
 
 const app = express();
@@ -230,6 +250,88 @@ async function getActivityDetails(accessToken, idCurso, idActividad) {
     }
 }
 
+async function getCourseMembers(accessToken, idCurso) {
+    const axios = require('axios');
+
+    try {
+        const response = await axios.get(EMINUS_ENDPOINTS.COURSE_MEMBERS(idCurso), {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`
+            }
+        });
+
+        return response.data.contenido || response.data || [];
+    } catch (error) {
+        console.error('❌ Error obteniendo integrantes del curso:', error.response?.data || error.message);
+        throw error;
+    }
+}
+
+async function getCourseModules(accessToken, idCurso) {
+    const axios = require('axios');
+
+    try {
+        const response = await axios.get(EMINUS_ENDPOINTS.COURSE_MODULES(idCurso), {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`
+            }
+        });
+
+        return response.data.contenido || response.data || [];
+    } catch (error) {
+        console.error('❌ Error obteniendo módulos del curso:', error.response?.data || error.message);
+        throw error;
+    }
+}
+
+async function getCourseExams(accessToken, idCurso) {
+    const axios = require('axios');
+
+    try {
+        const response = await axios.get(EMINUS_ENDPOINTS.COURSE_EXAMS(idCurso), {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`
+            }
+        });
+
+        return response.data.contenido || response.data || [];
+    } catch (error) {
+        console.error('❌ Error obteniendo exámenes del curso:', error.response?.data || error.message);
+        throw error;
+    }
+}
+
+async function getPendingTasksForCourse(accessToken, idCurso, nombreCurso) {
+    const tareas = [];
+    const actividades = await getCourseActivities(accessToken, idCurso);
+
+    for (const actividad of actividades) {
+        const titulo = actividad.titulo || 'Actividad sin título';
+        const fechaTermino = actividad.fechaTermino ?
+            new Date(actividad.fechaTermino).toLocaleDateString('es-MX') :
+            'sin fecha';
+        const estadoAct = actividad.estadoAct || 0;
+        const estadoEntrega = actividad.estadoEntrega;
+        const estado = actividad.estado;
+
+        console.log(`📝 [${nombreCurso}] Actividad: "${titulo}" - EstadoAct: ${estadoAct} - EstadoEntrega: ${estadoEntrega} - Estado: ${estado}`);
+
+        if (estadoAct !== 2) continue;
+        if (!(estadoEntrega == null && estado == null)) continue;
+
+        tareas.push({
+            displayText: `${titulo} del curso ${nombreCurso} para el ${fechaTermino}`,
+            idCurso,
+            idActividad: actividad.idActividad,
+            titulo,
+            nombreCurso,
+            fechaTermino
+        });
+    }
+
+    return tareas;
+}
+
 async function buildPendingTasks(accessToken) {
     const cursosFavoritos = await getFavoriteCourses(accessToken);
     const tareas = [];
@@ -241,32 +343,9 @@ async function buildPendingTasks(accessToken) {
 
         console.log(`🔍 Procesando curso: ${nombreCurso} (ID: ${idCurso})`);
 
-        const actividades = await getCourseActivities(accessToken, idCurso);
-        console.log(`📋 Actividades encontradas en ${nombreCurso}: ${actividades.length}`);
-
-        for (const actividad of actividades) {
-            const titulo = actividad.titulo || 'Actividad sin título';
-            const fechaTermino = actividad.fechaTermino ?
-                new Date(actividad.fechaTermino).toLocaleDateString('es-MX') :
-                'sin fecha';
-            const estadoAct = actividad.estadoAct || 0;
-            const estadoEntrega = actividad.estadoEntrega;
-            const estado = actividad.estado;
-
-            console.log(`📝 Actividad: "${titulo}" - EstadoAct: ${estadoAct} - EstadoEntrega: ${estadoEntrega} - Estado: ${estado} - Fecha: ${fechaTermino}`);
-
-            if (estadoAct !== 2) continue;
-            if (!(estadoEntrega == null && estado == null)) continue;
-
-            tareas.push({
-                displayText: `${titulo} del curso ${nombreCurso} para el ${fechaTermino}`,
-                idCurso,
-                idActividad: actividad.idActividad,
-                titulo,
-                nombreCurso,
-                fechaTermino
-            });
-        }
+        const tareasCurso = await getPendingTasksForCourse(accessToken, idCurso, nombreCurso);
+        console.log(`📋 Tareas pendientes encontradas en ${nombreCurso}: ${tareasCurso.length}`);
+        tareas.push(...tareasCurso);
     }
 
     return tareas;
@@ -323,6 +402,205 @@ const NotificacionesIntentHandler = {
             console.error('❌ Error obteniendo token de Eminus:', error.response?.data || error.message);
             return handlerInput.responseBuilder
                 .speak("Hubo un error al conectar con Eminus. Por favor, intenta nuevamente más tarde.")
+                .getResponse();
+        }
+    }
+};
+
+// Handler para listar cursos favoritos
+const CursosFavoritosIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'CursosFavoritosIntent';
+    },
+    async handle(handlerInput) {
+        try {
+            const accessToken = await authenticateWithEminus();
+            const cursosFavoritos = await getFavoriteCourses(accessToken);
+
+            const cursosEnumerados = (cursosFavoritos || [])
+                .map((cursoData) => {
+                    const curso = cursoData.curso || {};
+                    return {
+                        idCurso: curso.idCurso,
+                        nombre: curso.nombre || 'Curso sin nombre'
+                    };
+                })
+                .filter((curso) => curso.idCurso && curso.nombre);
+
+            if (cursosEnumerados.length === 0) {
+                return handlerInput.responseBuilder
+                    .speak("No encontramos cursos favoritos activos en tu cuenta de Eminus.")
+                    .reprompt("¿Quieres intentar otra consulta?")
+                    .getResponse();
+            }
+
+            const cursosPresentados = cursosEnumerados.slice(0, 5);
+            const cursosTexto = cursosPresentados.map((curso, idx) => `${idx + 1}.- ${curso.nombre}`);
+
+            const attributes = handlerInput.attributesManager.getSessionAttributes();
+            attributes.cursosFavoritosEnumerados = cursosPresentados;
+            attributes.cursoSeleccionado = null;
+            handlerInput.attributesManager.setSessionAttributes(attributes);
+
+            const speakOutput = `Tus cursos favoritos son: ${cursosTexto.join('. ')}. ¿Quieres detalles de alguno? Dime el número.`;
+
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt("Dime el número del curso que quieres revisar." )
+                .getResponse();
+        } catch (error) {
+            console.error('❌ Error listando cursos favoritos:', error.response?.data || error.message);
+            return handlerInput.responseBuilder
+                .speak("No pude obtener tus cursos favoritos en este momento. Intenta más tarde.")
+                .reprompt("¿Quieres intentar otra consulta?")
+                .getResponse();
+        }
+    }
+};
+
+// Handler para seleccionar un curso por número
+const SeleccionarCursoIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'SeleccionCursoIntent';
+    },
+    handle(handlerInput) {
+        const numeroCurso = handlerInput.requestEnvelope.request.intent.slots?.numeroCurso?.value;
+        const attributes = handlerInput.attributesManager.getSessionAttributes();
+        const cursos = attributes.cursosFavoritosEnumerados || [];
+
+        if (!numeroCurso || cursos.length === 0) {
+            return handlerInput.responseBuilder
+                .speak("Primero pídeme tus cursos favoritos y luego dime el número que quieres revisar.")
+                .reprompt("Puedes decir: Alexa, dime mis cursos favoritos.")
+                .getResponse();
+        }
+
+        const index = parseInt(numeroCurso, 10) - 1;
+
+        if (Number.isNaN(index) || index < 0 || index >= cursos.length) {
+            return handlerInput.responseBuilder
+                .speak(`No encontré el curso número ${numeroCurso}. Intenta con otro número de la lista.`)
+                .reprompt("Dime otro número de curso que aparezca en la lista.")
+                .getResponse();
+        }
+
+        const cursoSeleccionado = cursos[index];
+        attributes.cursoSeleccionado = cursoSeleccionado;
+        handlerInput.attributesManager.setSessionAttributes(attributes);
+
+        const speakOutput = `Seleccionaste ${cursoSeleccionado.nombre}. ¿Quieres saber las actividades pendientes, el nombre del profesor, los módulos o tus calificaciones de exámenes?`;
+
+        return handlerInput.responseBuilder
+            .speak(speakOutput)
+            .reprompt("Puedes decir profesor, módulos, exámenes o actividades para este curso.")
+            .getResponse();
+    }
+};
+
+// Handler para obtener información específica del curso seleccionado
+const InfoCursoIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'InfoCursoIntent';
+    },
+    async handle(handlerInput) {
+        const intent = handlerInput.requestEnvelope.request.intent;
+        const infoSlotValue = intent.slots?.tipoInformacion?.value;
+        const numeroCursoSlot = intent.slots?.numeroCurso?.value;
+
+        const infoType = normalizeInfoType(infoSlotValue || '');
+        if (!infoType) {
+            return handlerInput.responseBuilder
+                .speak("No entendí qué información del curso necesitas. Puedes decir profesor, módulos, exámenes o actividades.")
+                .reprompt("Dime si quieres profesor, módulos, exámenes o actividades.")
+                .getResponse();
+        }
+
+        const attributes = handlerInput.attributesManager.getSessionAttributes();
+        let cursoSeleccionado = attributes.cursoSeleccionado;
+        let cursosEnumerados = attributes.cursosFavoritosEnumerados || [];
+
+        if ((!cursoSeleccionado || !cursoSeleccionado.idCurso) && numeroCursoSlot) {
+            const index = parseInt(numeroCursoSlot, 10) - 1;
+            if (!Number.isNaN(index) && index >= 0 && index < cursosEnumerados.length) {
+                cursoSeleccionado = cursosEnumerados[index];
+                attributes.cursoSeleccionado = cursoSeleccionado;
+            }
+        }
+
+        if (!cursoSeleccionado || !cursoSeleccionado.idCurso) {
+            return handlerInput.responseBuilder
+                .speak("Primero dime qué curso quieres revisar. Puedes decir el número de la lista de cursos favoritos.")
+                .reprompt("Dime el número del curso que quieres revisar.")
+                .getResponse();
+        }
+
+        try {
+            const accessToken = await authenticateWithEminus();
+            let respuestaDetalle = '';
+
+            if (infoType === 'profesor') {
+                const miembros = await getCourseMembers(accessToken, cursoSeleccionado.idCurso);
+                const facilitadores = miembros.filter((integrante) => (integrante.tipoPerfil || '').toLowerCase() === 'facilitador');
+
+                if (facilitadores.length === 0) {
+                    respuestaDetalle = `No encontré docentes registrados para ${cursoSeleccionado.nombre}.`;
+                } else {
+                    const nombres = facilitadores.map(formatProfessorName);
+                    respuestaDetalle = `El profesor${nombres.length > 1 ? 'es' : ''} de ${cursoSeleccionado.nombre} ${nombres.length > 1 ? 'son' : 'es'}: ${nombres.join(', ')}.`;
+                }
+            } else if (infoType === 'modulos') {
+                const modulos = await getCourseModules(accessToken, cursoSeleccionado.idCurso);
+                if (!modulos || modulos.length === 0) {
+                    respuestaDetalle = `Este curso aún no tiene módulos publicados.`;
+                } else {
+                    const modulosTexto = modulos.slice(0, 5).map((modulo) => {
+                        const nombre = modulo.nombre || 'Módulo sin nombre';
+                        const totalElementos = modulo.totalElementos != null ? modulo.totalElementos : 0;
+                        return `${nombre} con ${totalElementos} elementos`;
+                    });
+                    respuestaDetalle = `Los primeros módulos de ${cursoSeleccionado.nombre} son: ${modulosTexto.join('. ')}.`;
+                }
+            } else if (infoType === 'examenes') {
+                const examenes = await getCourseExams(accessToken, cursoSeleccionado.idCurso);
+                if (!examenes || examenes.length === 0) {
+                    respuestaDetalle = `No encontré exámenes registrados para ${cursoSeleccionado.nombre}.`;
+                } else {
+                    const examenesTexto = examenes.slice(0, 3).map((examen) => {
+                        const titulo = examen.titulo || 'Examen sin título';
+                        const calificacion = examen.calificacion != null ? `${examen.calificacion}` : 'sin calificación aún';
+                        const totalPreguntas = examen.totalPreguntas != null ? examen.totalPreguntas : 'un número desconocido de';
+                        return `${titulo}, calificación ${calificacion}, con ${totalPreguntas} preguntas`;
+                    });
+                    respuestaDetalle = `Tus exámenes recientes son: ${examenesTexto.join('. ')}.`;
+                }
+            } else if (infoType === 'actividades') {
+                const tareas = await getPendingTasksForCourse(accessToken, cursoSeleccionado.idCurso, cursoSeleccionado.nombre);
+                if (!tareas || tareas.length === 0) {
+                    respuestaDetalle = `No tienes actividades pendientes en ${cursoSeleccionado.nombre}.`;
+                } else {
+                    const tareasTexto = tareas.slice(0, 5).map((tarea, idx) => `${idx + 1}.- ${tarea.displayText}`);
+                    respuestaDetalle = `Las actividades pendientes en ${cursoSeleccionado.nombre} son: ${tareasTexto.join('. ')}.`;
+                }
+            }
+
+            attributes.cursoSeleccionado = cursoSeleccionado;
+            handlerInput.attributesManager.setSessionAttributes(attributes);
+
+            const followUp = `¿Quieres saber algo más de ${cursoSeleccionado.nombre}? Puedes decir profesor, módulos, exámenes o actividades, o di salir para terminar.`;
+            const speakOutput = `${respuestaDetalle} ${followUp}`;
+
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt(`Dime si quieres profesor, módulos, exámenes o actividades de ${cursoSeleccionado.nombre}.`)
+                .getResponse();
+        } catch (error) {
+            console.error('❌ Error obteniendo información del curso:', error.response?.data || error.message);
+            return handlerInput.responseBuilder
+                .speak("No pude obtener esa información del curso. Intenta nuevamente en unos minutos.")
+                .reprompt("¿Quieres intentar con otro tipo de información?")
                 .getResponse();
         }
     }
@@ -487,14 +765,17 @@ const FallbackHandler = {
 
 // SkillBuilder con handlers
 const skill = Alexa.SkillBuilders.custom()
-    .addRequestHandlers(
-        LaunchRequestHandler,
-        NotificacionesIntentHandler,
-        TareasPendientesIntentHandler,
-        DetallesTareaIntentHandler,
-        FallbackHandler // SIEMPRE AL FINAL
-    )
-    .create();
+.addRequestHandlers(
+    LaunchRequestHandler,
+    NotificacionesIntentHandler,
+    CursosFavoritosIntentHandler,
+    SeleccionarCursoIntentHandler,
+    InfoCursoIntentHandler,
+    TareasPendientesIntentHandler,
+    DetallesTareaIntentHandler,
+    FallbackHandler // SIEMPRE AL FINAL
+)
+.create();
 
 // Endpoint de la skill que Alexa invoca
 app.post('/skill', (req, res) => {
