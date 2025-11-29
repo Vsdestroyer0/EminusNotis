@@ -199,7 +199,7 @@ const NotificacionesIntentHandler = {
                                 console.log(`📝 Actividad: "${titulo}" - EstadoAct: ${estadoAct} - EstadoEntrega: ${estadoEntrega} - Estado: ${estado} - Fecha: ${fechaTermino}`);
                                 
                                 // Considerar pendiente solo si no ha sido entregada (estadoEntrega y estado en null)
-                                if (estadoEntrega == null && estado == null && estadoAct === 2) {
+                                if (estadoEntrega == null && estado == null) {
                                     tareas.push(`${titulo} del curso ${nombreCurso} para el ${fechaTermino}`);
                                     console.log(`✅ Tarea pendiente agregada: ${titulo}`);
                                 }
