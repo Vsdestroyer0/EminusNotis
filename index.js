@@ -311,8 +311,8 @@ const NotificacionesIntentHandler = {
             handlerInput.attributesManager.setSessionAttributes(attributes);
 
             const speakOutput = tareasEnumeradas.length === 1 ? 
-                `Tienes ${tareasEnumeradas.length} tarea pendiente: ${tareasEnumeradas[0]}.` :
-                `Tienes ${tareasEnumeradas.length} tareas pendientes: ${tareasEnumeradas.join('. ')}.`;
+                `Tienes ${tareasEnumeradas.length} tarea pendiente: ${tareasEnumeradas[0]}. ¿Quieres conocer los detalles de alguna tarea específica?` :
+                `Tienes ${tareasEnumeradas.length} tareas pendientes: ${tareasEnumeradas.join('. ')}. ¿Quieres conocer los detalles de alguna tarea específica?`;
 
             return handlerInput.responseBuilder
                 .speak(speakOutput)
@@ -457,8 +457,8 @@ const TareasPendientesIntentHandler = {
             handlerInput.attributesManager.setSessionAttributes(attributes);
 
             const speakOutput = tareasEnumeradas.length === 1 ? 
-                `Tienes ${tareasEnumeradas.length} tarea pendiente: ${tareasEnumeradas[0]}.` :
-                `Tienes ${tareasEnumeradas.length} tareas pendientes: ${tareasEnumeradas.join('. ')}.`;
+                `Tienes ${tareasEnumeradas.length} tarea pendiente: ${tareasEnumeradas[0]}. ¿Quieres conocer los detalles de alguna tarea específica?` :
+                `Tienes ${tareasEnumeradas.length} tareas pendientes: ${tareasEnumeradas.join('. ')}. ¿Quieres conocer los detalles de alguna tarea específica?`;
 
             return handlerInput.responseBuilder
                 .speak(speakOutput)
