@@ -197,6 +197,48 @@ async function getActivityDetails(accessToken, idCurso, idActividad) {
     }
 }
 
+async function buildPendingTasks(accessToken) {
+    const cursosFavoritos = await getFavoriteCourses(accessToken);
+    const tareas = [];
+
+    for (const cursoData of cursosFavoritos) {
+        const curso = cursoData.curso;
+        const idCurso = curso.idCurso;
+        const nombreCurso = curso.nombre;
+
+        console.log(`🔍 Procesando curso: ${nombreCurso} (ID: ${idCurso})`);
+
+        const actividades = await getCourseActivities(accessToken, idCurso);
+        console.log(`📋 Actividades encontradas en ${nombreCurso}: ${actividades.length}`);
+
+        for (const actividad of actividades) {
+            const titulo = actividad.titulo || 'Actividad sin título';
+            const fechaTermino = actividad.fechaTermino ?
+                new Date(actividad.fechaTermino).toLocaleDateString('es-MX') :
+                'sin fecha';
+            const estadoAct = actividad.estadoAct || 0;
+            const estadoEntrega = actividad.estadoEntrega;
+            const estado = actividad.estado;
+
+            console.log(`📝 Actividad: "${titulo}" - EstadoAct: ${estadoAct} - EstadoEntrega: ${estadoEntrega} - Estado: ${estado} - Fecha: ${fechaTermino}`);
+
+            if (estadoAct !== 2) continue;
+            if (!(estadoEntrega == null && estado == null)) continue;
+
+            tareas.push({
+                displayText: `${titulo} del curso ${nombreCurso} para el ${fechaTermino}`,
+                idCurso,
+                idActividad: actividad.idActividad,
+                titulo,
+                nombreCurso,
+                fechaTermino
+            });
+        }
+    }
+
+    return tareas;
+}
+
 // Handler para LaunchRequest (al abrir la skill)
 const LaunchRequestHandler = {
     canHandle(handlerInput) {
@@ -219,66 +261,22 @@ const NotificacionesIntentHandler = {
     },
     async handle(handlerInput) {
         try {
-            // Autenticación usando helper
             const accessToken = await authenticateWithEminus();
-            
-            // Obtener cursos favoritos usando helper
-            const cursosFavoritos = await getFavoriteCourses(accessToken);
-            
-            let tareas = [];
-            
-            // Procesar cada curso favorito
-            for (const cursoData of cursosFavoritos) {
-                const curso = cursoData.curso;
-                const idCurso = curso.idCurso;
-                const nombreCurso = curso.nombre;
-                
-                console.log(`🔍 Procesando curso: ${nombreCurso} (ID: ${idCurso})`);
-                
-                // Obtener actividades usando helper
-                const actividades = await getCourseActivities(accessToken, idCurso);
-                console.log(`📋 Actividades encontradas en ${nombreCurso}: ${actividades.length}`);
-                
-                // Procesar cada actividad
-                for (const actividad of actividades) {
-                    const titulo = actividad.titulo || 'Actividad sin título';
-                    const fechaTermino = actividad.fechaTermino ? 
-                        new Date(actividad.fechaTermino).toLocaleDateString('es-MX') : 
-                        'sin fecha';
-                    const estadoAct = actividad.estadoAct || 0;
-                    const estadoEntrega = actividad.estadoEntrega;
-                    const estado = actividad.estado;
-                    
-                    console.log(`📝 Actividad: "${titulo}" - EstadoAct: ${estadoAct} - EstadoEntrega: ${estadoEntrega} - Estado: ${estado} - Fecha: ${fechaTermino}`);
+            const todasLasTareas = await buildPendingTasks(accessToken);
 
-                    // 1) Solo actividades activas
-                    if (estadoAct !== 2) continue;
-
-                    // 2) Solo no entregadas
-                    if (estadoEntrega == null && estado == null) {
-                        tareas.push(`${titulo} del curso ${nombreCurso} para el ${fechaTermino}`);
-                        console.log(`✅ Tarea pendiente agregada: ${titulo}`);
-                    }
-                }
-            }
-            
-            // Si no hay tareas pendientes, mostrar mensaje
-            if (tareas.length === 0) {
-                tareas = ["No tienes actividades pendientes en tus cursos favoritos"];
+            let tareasParaRespuesta;
+            if (todasLasTareas.length === 0) {
+                tareasParaRespuesta = [{ displayText: "No tienes actividades pendientes en tus cursos favoritos" }];
             } else {
-                // Limitar a 5 tareas para no hacer muy larga la respuesta
-                tareas = tareas.slice(0, 5);
+                tareasParaRespuesta = todasLasTareas.slice(0, 5);
             }
 
-            // Enumerar tareas: 1.- ..., 2.- ...
-            const tareasEnumeradas = tareas.map((t, idx) => `${idx + 1}.- ${t}`);
+            const tareasEnumeradas = tareasParaRespuesta.map((t, idx) => `${idx + 1}.- ${t.displayText}`);
 
-            // Guardar la lista de tareas completas (con IDs) en la sesión
             const attributes = handlerInput.attributesManager.getSessionAttributes();
-            attributes.tareasPendientes = tareas; // guardar la lista original con IDs
+            attributes.tareasPendientes = tareasParaRespuesta;
             handlerInput.attributesManager.setSessionAttributes(attributes);
 
-            // Texto para voz (Alexa habla con frases separadas por puntos)
             const speakOutput = tareasEnumeradas.length === 1 ? 
                 `Tienes ${tareasEnumeradas.length} tarea pendiente: ${tareasEnumeradas[0]}.` :
                 `Tienes ${tareasEnumeradas.length} tareas pendientes: ${tareasEnumeradas.join('. ')}.`;
@@ -304,8 +302,6 @@ const DetallesTareaIntentHandler = {
             && Alexa.getIntentName(handlerInput.requestEnvelope) === 'DetallesTareaIntent';
     },
     async handle(handlerInput) {
-        const axios = require('axios');
-        
         try {
             // Obtener el número de tarea del request
             const numeroTarea = handlerInput.requestEnvelope.request.intent.slots.numero.value;
@@ -317,9 +313,15 @@ const DetallesTareaIntentHandler = {
                     .getResponse();
             }
             
-            // Obtener la lista de tareas de la sesión
             const attributes = handlerInput.attributesManager.getSessionAttributes();
             const tareasPendientes = attributes.tareasPendientes || [];
+            
+            if (tareasPendientes.length === 0) {
+                return handlerInput.responseBuilder
+                    .speak("Primero pídeme tus tareas pendientes y luego dime el número que quieres revisar.")
+                    .reprompt("¿Quieres que te diga tus tareas pendientes?")
+                    .getResponse();
+            }
             
             const index = parseInt(numeroTarea) - 1;
             
@@ -330,103 +332,17 @@ const DetallesTareaIntentHandler = {
                     .getResponse();
             }
             
-            // Extraer idCurso e idActividad del texto de la tarea
-            // Formato esperado: "Título del curso NOMBRE para el FECHA"
-            const tareaTexto = tareasPendientes[index];
-            
-            // Necesitamos buscar la actividad original para obtener los IDs
-            // Para esto, autenticamos y buscamos en los cursos
-            
-            // Autenticación
-            const authResponse = await axios.post('https://eminus.uv.mx/eminusapi/api/auth', {
-                username: "zs23014164",
-                password: "Y1k8Z77e3Bt5Gz6NVvZ8qNuOy2WgLKnGHfRerpfP2ngfLP9QwrCmDb87C0G2Hk5J"
-            });
-            
-            // Obtener cursos
-            const coursesResponse = await axios.get('https://eminus.uv.mx/eminusapi8/api/Course/getAllCourses', {
-                headers: {
-                    'Authorization': `Bearer ${authResponse.data.accessToken}`
-                }
-            });
-            
-            const cursos = coursesResponse.data.contenido || [];
-            const cursosFavoritos = cursos.filter(curso => 
-                curso.curso?.esFavorito === 1 && 
-                curso.curso?.visible === 1
-            );
-            
-            let tareaEncontrada = null;
-            let idCursoEncontrado = null;
-            
-            // Buscar la tarea específica en los cursos
-            for (const cursoData of cursosFavoritos) {
-                const curso = cursoData.curso;
-                const idCurso = curso.idCurso;
-                const nombreCurso = curso.nombre;
-                
-                try {
-                    const actividadesResponse = await axios.get(
-                        `https://eminus.uv.mx/eminusapi8/api/Activity/getActividadesEstudiante/${idCurso}`,
-                        {
-                            headers: {
-                                'Authorization': `Bearer ${authResponse.data.accessToken}`
-                            }
-                        }
-                    );
-                    
-                    const actividades = actividadesResponse.data.contenido || [];
-                    
-                    for (const actividad of actividades) {
-                        const titulo = actividad.titulo || 'Actividad sin título';
-                        const fechaTermino = actividad.fechaTermino ? 
-                            new Date(actividad.fechaTermino).toLocaleDateString('es-MX') : 
-                            'sin fecha';
-                        const estadoAct = actividad.estadoAct || 0;
-                        const estadoEntrega = actividad.estadoEntrega;
-                        const estado = actividad.estado;
-                        
-                        // Solo actividades activas y no entregadas
-                        if (estadoAct !== 2) continue;
-                        if (!(estadoEntrega == null && estado == null)) continue;
-                        
-                        // Construir el texto de la misma forma que en el listado
-                        const textoTarea = `${titulo} del curso ${nombreCurso} para el ${fechaTermino}`;
-                        
-                        if (textoTarea === tareaTexto) {
-                            tareaEncontrada = actividad;
-                            idCursoEncontrado = idCurso;
-                            break;
-                        }
-                    }
-                    
-                    if (tareaEncontrada) break;
-                    
-                } catch (error) {
-                    if (error.response?.status === 404) continue;
-                    console.error(`❌ Error obteniendo actividades del curso ${idCurso}:`, error.message);
-                    continue;
-                }
-            }
-            
-            if (!tareaEncontrada) {
+            const tareaSeleccionada = tareasPendientes[index];
+
+            if (!tareaSeleccionada.idCurso || !tareaSeleccionada.idActividad) {
                 return handlerInput.responseBuilder
-                    .speak("No pude encontrar los detalles de esa tarea. Intenta de nuevo.")
-                    .reprompt("¿Quieres consultar otra tarea?")
+                    .speak("No tengo los datos necesarios de esa tarea. Pide de nuevo tus tareas pendientes y vuelve a intentarlo.")
+                    .reprompt("¿Quieres que te diga tus tareas pendientes?")
                     .getResponse();
             }
-            
-            // Obtener detalles completos de la actividad
-            const detallesResponse = await axios.get(
-                `https://eminus.uv.mx/eminusapi8/api/Activity/getActividadEstudiante/${idCursoEncontrado}/${tareaEncontrada.idActividad}`,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${authResponse.data.accessToken}`
-                    }
-                }
-            );
-            
-            const actividad = detallesResponse.data.contenido[0];
+
+            const accessToken = await authenticateWithEminus();
+            const actividad = await getActivityDetails(accessToken, tareaSeleccionada.idCurso, tareaSeleccionada.idActividad);
             
             // Construir respuesta con los detalles
             let respuesta = `Detalles de la tarea: ${actividad.titulo}. `;
@@ -490,119 +406,27 @@ const TareasPendientesIntentHandler = {
             && Alexa.getIntentName(handlerInput.requestEnvelope) === 'TareasPendientesIntent';
     },
     async handle(handlerInput) {
-        // Importar axios dentro del handler para asegurar disponibilidad
-        const axios = require('axios');
-        
-        // Temporalmente sin verificar token para pruebas
-        // const token = handlerInput.requestEnvelope.context.System.user.accessToken;
-        
         try {
-            // Llamada directa a Eminus API con credenciales hardcodeadas
-            const authResponse = await axios.post('https://eminus.uv.mx/eminusapi/api/auth', {
-                username: "zs23014164",
-                password: "Y1k8Z77e3Bt5Gz6NVvZ8qNuOy2WgLKnGHfRerpfP2ngfLP9QwrCmDb87C0G2Hk5J"
-            });
-            
-            console.log('✅ Token obtenido directamente de Eminus');
-            
-            // Obtener cursos con el token
-            const coursesResponse = await axios.get('https://eminus.uv.mx/eminusapi8/api/Course/getAllCourses', {
-                headers: {
-                    'Authorization': `Bearer ${authResponse.data.accessToken}`
-                }
-            });
-            
-            console.log('✅ Cursos obtenidos:', coursesResponse.data);
-            
-            // Extraer información relevante de los cursos
-            const cursosData = coursesResponse.data;
-            const cursos = cursosData.contenido || []; // Acceder al array contenido
-            let tareas = [];
-            
-            console.log(`✅ Total de cursos recibidos: ${cursos.length}`);
-            
-            if (cursos && cursos.length > 0) {
-                // Filtrar solo cursos favoritos (activos)
-                const cursosFavoritos = cursos.filter(curso => 
-                    curso.curso?.esFavorito === 1 && 
-                    curso.curso?.visible === 1
-                );
-                
-                console.log(`✅ Cursos favoritos encontrados: ${cursosFavoritos.length}`);
-                
-                // Mostrar detalles de cursos favoritos para debugging
-                cursosFavoritos.forEach((cursoData, index) => {
-                    console.log(`📚 Curso ${index + 1}: ${cursoData.curso?.nombre} (ID: ${cursoData.curso?.idCurso})`);
-                });
-                
-                // Obtener actividades de cada curso favorito
-                for (const cursoData of cursosFavoritos) {
-                    const curso = cursoData.curso;
-                    const idCurso = curso.idCurso;
-                    const nombreCurso = curso.nombre;
-                    
-                    console.log(`🔍 Procesando curso: ${nombreCurso} (ID: ${idCurso})`);
-                    
-                    try {
-                        // Obtener actividades del curso
-                        const actividadesResponse = await axios.get(
-                            `https://eminus.uv.mx/eminusapi8/api/Activity/getActividadesEstudiante/${idCurso}`,
-                            {
-                                headers: {
-                                    'Authorization': `Bearer ${authResponse.data.accessToken}`
-                                }
-                            }
-                        );
-                        
-                        const actividades = actividadesResponse.data.contenido || [];
-                        console.log(`📋 Actividades encontradas en ${nombreCurso}: ${actividades.length}`);
-                        
-                        if (actividades.length > 0) {
-                            // Procesar cada actividad para obtener detalles
-                            for (const actividad of actividades) {
-                                const titulo = actividad.titulo || 'Actividad sin título';
-                                const fechaTermino = actividad.fechaTermino ? 
-                                    new Date(actividad.fechaTermino).toLocaleDateString('es-MX') : 
-                                    'sin fecha';
-                                const estadoAct = actividad.estadoAct || 0;
-                                
-                                console.log(`📝 Actividad: "${titulo}" - Estado: ${estadoAct} - Fecha: ${fechaTermino}`);
-                                
-                                // Estado 2 = pendiente, otros estados = completada/entregada
-                                if (estadoAct === 2) {
-                                    tareas.push(`${titulo} del curso ${nombreCurso} para el ${fechaTermino}`);
-                                    console.log(`✅ Tarea pendiente agregada: ${titulo}`);
-                                }
-                            }
-                        } else {
-                            console.log(`ℹ️ No hay actividades en el curso ${nombreCurso}`);
-                        }
-                        
-                    } catch (error) {
-                        // Si es error 404, ignorar y continuar con el siguiente curso
-                        if (error.response?.status === 404) {
-                            console.log(`ℹ️ Curso ${nombreCurso} no tiene actividades disponibles`);
-                            continue;
-                        }
-                        console.error(`❌ Error obteniendo actividades del curso ${idCurso}:`, error.message);
-                        // Continuar con el siguiente curso si hay error
-                        continue;
-                    }
-                }
-            }
-            
-            // Si no hay tareas pendientes, mostrar mensaje
-            if (tareas.length === 0) {
-                tareas = ["No tienes actividades pendientes en tus cursos favoritos"];
+            const accessToken = await authenticateWithEminus();
+            const todasLasTareas = await buildPendingTasks(accessToken);
+
+            let tareasParaRespuesta;
+            if (todasLasTareas.length === 0) {
+                tareasParaRespuesta = [{ displayText: "No tienes actividades pendientes en tus cursos favoritos" }];
             } else {
-                // Limitar a 5 tareas para no hacer muy larga la respuesta
-                tareas = tareas.slice(0, 5);
+                tareasParaRespuesta = todasLasTareas.slice(0, 5);
             }
-            
-            const speakOutput = tareas.length === 1 ? 
-                `Tienes ${tareas.length} tarea pendiente: ${tareas[0]}.` :
-                `Tienes ${tareas.length} tareas pendientes: <p>${tareas.join('</p><p>')}</p>.`;
-            
+
+            const tareasEnumeradas = tareasParaRespuesta.map((t, idx) => `${idx + 1}.- ${t.displayText}`);
+
+            const attributes = handlerInput.attributesManager.getSessionAttributes();
+            attributes.tareasPendientes = tareasParaRespuesta;
+            handlerInput.attributesManager.setSessionAttributes(attributes);
+
+            const speakOutput = tareasEnumeradas.length === 1 ? 
+                `Tienes ${tareasEnumeradas.length} tarea pendiente: ${tareasEnumeradas[0]}.` :
+                `Tienes ${tareasEnumeradas.length} tareas pendientes: ${tareasEnumeradas.join('. ')}.`;
+
             return handlerInput.responseBuilder
                 .speak(speakOutput)
                 .reprompt("¿Quieres conocer los detalles de alguna tarea específica?")
