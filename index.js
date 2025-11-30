@@ -186,7 +186,7 @@ app.post('/token', async (req, res) => {
 
 // -------- 3. Página callback para OAuth --------
 app.get('/callback', (req, res) => {
-    console.log('callback code:', code);
+    console.log('callback code:', req.query.code);
     res.sendFile(path.join(__dirname, 'public', 'callback.html'));
 });
 
