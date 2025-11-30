@@ -132,7 +132,6 @@
                 loginBtn.textContent = 'Cuenta vinculada';
                 loginBtn.disabled = true;
                 
-                console.log('Token recibido:', accessToken);
                 
                 // Opcional: Enviar token al backend
                 sendTokenToBackend(accessToken);
@@ -153,10 +152,8 @@
             })
             .then(response => response.json())
             .then(data => {
-                console.log('Token verificado en backend:', data);
             })
             .catch(error => {
-                console.error('Error verificando token:', error);
             });
         }
 

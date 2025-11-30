@@ -103,7 +103,6 @@ app.get('/login', (req, res) => {
 });
 
 app.post('/auth', (req, res) => {
-    console.log('➡️ /auth usuario:', req.body.username);
     const { username, password, redirect_uri, state, client_id, remember } = req.body;
     
     try {
@@ -116,7 +115,6 @@ app.post('/auth', (req, res) => {
         const code = Buffer.from(`${username}:${password}`).toString('base64');
         res.redirect(`${redirect_uri}?code=${code}&state=${state}`);
     } catch (error) {
-        console.error('❌ Error en /auth:', error);
         res.status(500).json({ 
             error: 'server_error',
             error_description: 'Error al procesar credenciales'
@@ -126,7 +124,6 @@ app.post('/auth', (req, res) => {
 
 // -------- 2. Endpoint de autenticación real (token endpoint) --------
 app.post('/token', async (req, res) => {
-    console.log('➡️ /token solicitud:', req.body);
     const { grant_type, code } = req.body;
     let client_id = req.body.client_id;
     let client_secret = req.body.client_secret;
@@ -175,7 +172,6 @@ app.post('/token', async (req, res) => {
             password: password
         });
         
-        console.log('✅ Autenticación exitosa con Eminus para usuario:', username);
         
         res.json({
             access_token: response.data.accessToken,
@@ -183,7 +179,6 @@ app.post('/token', async (req, res) => {
             expires_in: 3600
         });
     } catch (error) {
-        console.error('❌ Error en autenticación Eminus:', error.response?.data || error.message);
         
         if (error.response?.status === 401) {
             res.status(401).json({ 
@@ -201,7 +196,6 @@ app.post('/token', async (req, res) => {
 
 // -------- 3. Página callback para OAuth --------
 app.get('/callback', (req, res) => {
-    console.log('callback code:', req.query.code);
     res.sendFile(path.join(__dirname, 'public', 'callback.html'));
 });
 
@@ -215,7 +209,6 @@ app.post('/logout', (req, res) => {
     if (req.session) {
         req.session.destroy(err => {
             if (err) {
-                console.error('❌ Error destruyendo sesión:', err);
                 return res.status(500).json({ error: 'Error al cerrar sesión' });
             }
             res.clearCookie('connect.sid');
@@ -266,10 +259,8 @@ async function getFavoriteCourses(accessToken) {
             curso.curso?.visible === 1
         );
         
-        console.log(`✅ Cursos favoritos encontrados: ${cursosFavoritos.length}`);
         return cursosFavoritos;
     } catch (error) {
-        console.error('❌ Error obteniendo cursos:', error.response?.data || error.message);
         throw error;
     }
 }
@@ -288,7 +279,6 @@ async function getCourseActivities(accessToken, idCurso) {
         return actividadesResponse.data.contenido || [];
     } catch (error) {
         if (error.response?.status === 404) {
-            console.log(`ℹ️ Curso ${idCurso} no tiene actividades disponibles`);
             return [];
         }
         throw error;
@@ -308,7 +298,6 @@ async function getActivityDetails(accessToken, idCurso, idActividad) {
         
         return detallesResponse.data.contenido[0];
     } catch (error) {
-        console.error('❌ Error obteniendo detalles de actividad:', error.response?.data || error.message);
         throw error;
     }
 }
@@ -325,7 +314,6 @@ async function getCourseMembers(accessToken, idCurso) {
 
         return response.data.contenido || response.data || [];
     } catch (error) {
-        console.error('❌ Error obteniendo integrantes del curso:', error.response?.data || error.message);
         throw error;
     }
 }
@@ -342,7 +330,6 @@ async function getCourseModules(accessToken, idCurso) {
 
         return response.data.contenido || response.data || [];
     } catch (error) {
-        console.error('❌ Error obteniendo módulos del curso:', error.response?.data || error.message);
         throw error;
     }
 }
@@ -359,7 +346,6 @@ async function getCourseExams(accessToken, idCurso) {
 
         return response.data.contenido || response.data || [];
     } catch (error) {
-        console.error('❌ Error obteniendo exámenes del curso:', error.response?.data || error.message);
         throw error;
     }
 }
@@ -377,7 +363,6 @@ async function getPendingTasksForCourse(accessToken, idCurso, nombreCurso) {
         const estadoEntrega = actividad.estadoEntrega;
         const estado = actividad.estado;
 
-        console.log(`📝 [${nombreCurso}] Actividad: "${titulo}" - EstadoAct: ${estadoAct} - EstadoEntrega: ${estadoEntrega} - Estado: ${estado}`);
 
         if (estadoAct !== 2) continue;
         if (!(estadoEntrega == null && estado == null)) continue;
@@ -404,10 +389,8 @@ async function buildPendingTasks(accessToken) {
         const idCurso = curso.idCurso;
         const nombreCurso = curso.nombre;
 
-        console.log(`🔍 Procesando curso: ${nombreCurso} (ID: ${idCurso})`);
 
         const tareasCurso = await getPendingTasksForCourse(accessToken, idCurso, nombreCurso);
-        console.log(`📋 Tareas pendientes encontradas en ${nombreCurso}: ${tareasCurso.length}`);
         tareas.push(...tareasCurso);
     }
 
@@ -462,7 +445,6 @@ const NotificacionesIntentHandler = {
                 .getResponse();
                 
         } catch (error) {
-            console.error('❌ Error obteniendo token de Eminus:', error.response?.data || error.message);
             return handlerInput.responseBuilder
                 .speak("Hubo un error al conectar con Eminus. Por favor, intenta nuevamente más tarde.")
                 .getResponse();
@@ -513,7 +495,6 @@ const CursosFavoritosIntentHandler = {
                 .reprompt("Dime el número del curso que quieres revisar." )
                 .getResponse();
         } catch (error) {
-            console.error('❌ Error listando cursos favoritos:', error.response?.data || error.message);
             return handlerInput.responseBuilder
                 .speak("No pude obtener tus cursos favoritos en este momento. Intenta más tarde.")
                 .reprompt("¿Quieres intentar otra consulta?")
@@ -660,7 +641,6 @@ const InfoCursoIntentHandler = {
                 .reprompt(`Dime si quieres profesor, módulos, exámenes o actividades del curso.`)
                 .getResponse();
         } catch (error) {
-            console.error('❌ Error obteniendo información del curso:', error.response?.data || error.message);
             return handlerInput.responseBuilder
                 .speak("No pude obtener esa información del curso. Intenta nuevamente en unos minutos.")
                 .reprompt("¿Quieres intentar con otro tipo de información?")
@@ -764,7 +744,6 @@ const DetallesTareaIntentHandler = {
                 .getResponse();
                 
         } catch (error) {
-            console.error('❌ Error obteniendo detalles de tarea:', error.response?.data || error.message);
             return handlerInput.responseBuilder
                 .speak("Hubo un error al obtener los detalles de la tarea. Por favor, intenta nuevamente.")
                 .reprompt("¿Quieres intentar con otra tarea?")
@@ -807,7 +786,6 @@ const TareasPendientesIntentHandler = {
                 .getResponse();
                 
         } catch (error) {
-            console.error('❌ Error obteniendo token de Eminus:', error.response?.data || error.message);
             return handlerInput.responseBuilder
                 .speak("Hubo un error al conectar con Eminus. Por favor, intenta nuevamente más tarde.")
                 .getResponse();
@@ -819,7 +797,6 @@ const TareasPendientesIntentHandler = {
 const FallbackHandler = {
     canHandle(handlerInput) { return true; },
     handle(handlerInput) {
-        console.log("[DEBUG]: Request desconocida:", JSON.stringify(handlerInput.requestEnvelope, null, 2));
         return handlerInput.responseBuilder
             .speak("Request no reconocida por el demo.")
             .getResponse();
@@ -842,12 +819,9 @@ const skill = Alexa.SkillBuilders.custom()
 
 // -------- 8. Endpoint de la skill que Alexa invoca --------
 app.post('/skill', (req, res) => {
-    console.log("[IN] Pedido Alexa:", JSON.stringify(req.body, null, 2));
-    
     skill.invoke(req.body)
         .then((responseBody) => res.json(responseBody))
         .catch((err) => {
-            console.error('Alexa Skill error:', err);
             res.status(500).send('Alexa Skill error');
         });
 });
@@ -870,5 +844,4 @@ app.get('/demo', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`OAuth2 + Alexa Skill con login dinámico corriendo en el puerto ${PORT}`);
 });
