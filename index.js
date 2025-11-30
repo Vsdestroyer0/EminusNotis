@@ -204,6 +204,15 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// -------- 5. Páginas de documentación --------
+app.get('/privacy-policy', (req, res) => {
+    res.sendFile(path.join(__dirname, 'docs', 'privacy-policy.html'));
+});
+
+app.get('/terms-of-service', (req, res) => {
+    res.sendFile(path.join(__dirname, 'docs', 'terms-of-service.html'));
+});
+
 // -------- 5. Endpoint de logout --------
 app.post('/logout', (req, res) => {
     if (req.session) {
