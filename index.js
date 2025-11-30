@@ -240,27 +240,13 @@ app.get('/session-status', (req, res) => {
 
 // -------- 7. Alexa Skill Handlers --------
 
-// Helper function para autenticación con Eminus (usando sesión)
-async function authenticateWithEminus() {
-    throw new Error('Use authenticateWithEminusSession(req) instead');
-}
-
-// Helper para autenticación usando credenciales de sesión
-async function authenticateWithEminusSession(req) {
-    if (!req.session || !req.session.credentials) {
-        throw new Error('No hay credenciales guardadas en la sesión');
+function getAlexaAccessToken(handlerInput) {
+    const token = handlerInput?.requestEnvelope?.context?.System?.user?.accessToken
+        || handlerInput?.requestEnvelope?.session?.user?.accessToken;
+    if (!token) {
+        throw new Error('No hay access token de Alexa. Vuelve a vincular tu cuenta.');
     }
-    const axios = require('axios');
-    const { username, password } = req.session.credentials;
-    
-    try {
-        const response = await axios.post(EMINUS_ENDPOINTS.AUTH, { username, password });
-        console.log(`✅ Autenticación exitosa con Eminus para usuario: ${username}`);
-        return response.data.accessToken;
-    } catch (error) {
-        console.error('❌ Error en autenticación Eminus:', error.response?.data || error.message);
-        throw error;
-    }
+    return token;
 }
 
 // Helper function para obtener cursos favoritos
@@ -450,7 +436,7 @@ const NotificacionesIntentHandler = {
     },
     async handle(handlerInput) {
         try {
-            const accessToken = await authenticateWithEminus();
+            const accessToken = getAlexaAccessToken(handlerInput);
             const todasLasTareas = await buildPendingTasks(accessToken);
 
             let tareasParaRespuesta;
@@ -492,7 +478,7 @@ const CursosFavoritosIntentHandler = {
     },
     async handle(handlerInput) {
         try {
-            const accessToken = await authenticateWithEminus();
+            const accessToken = getAlexaAccessToken(handlerInput);
             const cursosFavoritos = await getFavoriteCourses(accessToken);
 
             const cursosEnumerados = (cursosFavoritos || [])
@@ -615,7 +601,7 @@ const InfoCursoIntentHandler = {
         }
 
         try {
-            const accessToken = await authenticateWithEminus();
+            const accessToken = getAlexaAccessToken(handlerInput);
             let respuestaDetalle = '';
 
             if (infoType === 'profesor') {
@@ -729,7 +715,7 @@ const DetallesTareaIntentHandler = {
                     .getResponse();
             }
 
-            const accessToken = await authenticateWithEminus();
+            const accessToken = getAlexaAccessToken(handlerInput);
             const actividad = await getActivityDetails(accessToken, tareaSeleccionada.idCurso, tareaSeleccionada.idActividad);
             
             // Construir respuesta con los detalles
