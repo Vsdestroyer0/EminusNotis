@@ -118,6 +118,25 @@
             color: #667eea;
         }
 
+        .checkbox-group {
+            text-align: left;
+            margin-bottom: 20px;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+            user-select: none;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            margin-right: 10px;
+            width: auto;
+        }
+
         @media (max-width: 480px) {
             .login-container {
                 padding: 30px 20px;
@@ -174,6 +193,14 @@
                 />
             </div>
 
+            <div class="form-group checkbox-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="remember" value="30" />
+                    <span class="checkmark"></span>
+                    Mantener sesión activa por 30 días
+                </label>
+            </div>
+
             <button type="submit" class="submit-btn">
                 Iniciar Sesión
             </button>
@@ -183,7 +210,7 @@
             <p>
                 <span class="icon">🔐</span>
                 Tus credenciales se encriptan y se usan solo para conectar con Eminus. 
-                No almacenamos tu contraseña de forma permanente.
+                Al activar "Mantener sesión", tus datos se guardarán por 30 días para evitar volver a iniciar sesión.
             </p>
         </div>
     </div>

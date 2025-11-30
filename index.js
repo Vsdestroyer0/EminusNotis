@@ -100,11 +100,14 @@ app.get('/login', (req, res) => {
 });
 
 app.post('/auth', async (req, res) => {
-    const { username, password, redirect_uri, state, client_id } = req.body;
+    const { username, password, redirect_uri, state, client_id, remember } = req.body;
     
     try {
-        // Guardar credenciales en sesión
+        // Guardar credenciales en sesión con duración extendida si se seleccionó "recordarme"
+        const sessionDuration = remember ? 180 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000; // 30 días o 24 horas
+        
         req.session.credentials = { username, password };
+        req.session.cookie.maxAge = sessionDuration;
         
         // Generar code con credenciales reales
         const code = Buffer.from(`${username}:${password}`).toString('base64');
