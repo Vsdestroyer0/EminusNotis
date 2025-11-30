@@ -77,9 +77,7 @@
                     },
                     body: new URLSearchParams({
                         code,
-                        grant_type: 'authorization_code',
-                        client_id: '<%= process.env.CLIENT_ID || "alexa_skill_eminus" %>',
-                        client_secret: '<%= process.env.CLIENT_SECRET || "change_me" %>'
+                        grant_type: 'authorization_code'
                     }).toString()
                 })
                 .then(response => {
