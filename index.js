@@ -103,6 +103,7 @@ app.get('/login', (req, res) => {
 });
 
 app.post('/auth', (req, res) => {
+    console.log('➡️ /auth usuario:', req.body.username);
     const { username, password, redirect_uri, state, client_id, remember } = req.body;
     
     try {
@@ -185,6 +186,7 @@ app.post('/token', async (req, res) => {
 
 // -------- 3. Página callback para OAuth --------
 app.get('/callback', (req, res) => {
+    console.log('callback code:', code);
     res.sendFile(path.join(__dirname, 'public', 'callback.html'));
 });
 
