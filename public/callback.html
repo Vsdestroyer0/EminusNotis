@@ -55,49 +55,64 @@
             const messageEl = document.getElementById('message');
             
             try {
-                // Obtener parámetros de la URL (Implicit Grant)
-                const urlParams = new URLSearchParams(window.location.hash.substring(1));
-                const access_token = urlParams.get('access_token');
-                const token_type = urlParams.get('token_type');
-                const expires_in = urlParams.get('expires_in');
+                // Obtener parámetros del query (Auth Code Grant)
+                const urlParams = new URLSearchParams(window.location.search);
+                const code = urlParams.get('code');
                 const error = urlParams.get('error');
-                const state = urlParams.get('state');
 
                 if (error) {
                     throw new Error('Error de autenticación: ' + error);
                 }
 
-                if (!access_token) {
-                    throw new Error('No se recibió token de acceso');
+                if (!code) {
+                    throw new Error('No se recibió código de autorización');
                 }
 
-                messageEl.textContent = '¡Autenticación exitosa! Enviando token a la aplicación...';
-                
-                // Enviar el token al padre (ventana principal)
-                if (window.opener) {
-                    window.opener.postMessage({ 
-                        accessToken: access_token,
-                        tokenType: token_type || 'Bearer',
-                        expiresIn: expires_in || 3600
-                    }, '*');
-                    
-                    // Cerrar esta ventana después de un breve delay
-                    setTimeout(() => {
-                        window.close();
-                    }, 1000);
-                } else {
-                    // Si no hay ventana padre (abierto directamente), mostrar el token
-                    messageEl.innerHTML = `
-                        <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                            <strong>¡Autenticación exitosa!</strong><br>
-                            Token: ${access_token}<br>
-                            <small>Esta ventana se cerrará automáticamente.</small>
-                        </div>
-                    `;
-                    setTimeout(() => {
-                        window.close();
-                    }, 3000);
-                }
+                messageEl.textContent = 'Intercambiando código por token de acceso...';
+
+                fetch(`${window.location.origin}/token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: new URLSearchParams({
+                        code,
+                        grant_type: 'authorization_code',
+                        client_id: '<%= process.env.CLIENT_ID || "alexa_skill_eminus" %>',
+                        client_secret: '<%= process.env.CLIENT_SECRET || "change_me" %>'
+                    }).toString()
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Error en el intercambio de token');
+                    }
+                    return response.json();
+                })
+                .then(tokenData => {
+                    messageEl.textContent = '¡Autenticación exitosa! Enviando token a la aplicación...';
+
+                    if (window.opener) {
+                        window.opener.postMessage({
+                            accessToken: tokenData.access_token,
+                            tokenType: tokenData.token_type,
+                            expiresIn: tokenData.expires_in
+                        }, '*');
+
+                        setTimeout(() => window.close(), 1000);
+                    } else {
+                        messageEl.innerHTML = `
+                            <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                                <strong>¡Autenticación exitosa!</strong><br>
+                                Token: ${tokenData.access_token}<br>
+                                <small>Esta ventana se cerrará automáticamente.</small>
+                            </div>
+                        `;
+                        setTimeout(() => window.close(), 3000);
+                    }
+                })
+                .catch(error => {
+                    throw error;
+                });
             } catch (error) {
                 console.error('Error:', error);
                 messageEl.innerHTML = `

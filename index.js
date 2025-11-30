@@ -13,6 +13,11 @@ const EMINUS_CONFIG = {
     SKILL_ID: 'amzn1.ask.skill.94d76127-fc68-40eb-979b-0a88e646b511'
 };
 
+const OAUTH_CONFIG = {
+    CLIENT_ID: process.env.CLIENT_ID,
+    CLIENT_SECRET: process.env.CLIENT_SECRET
+};
+
 const EMINUS_ENDPOINTS = {
     AUTH: `${EMINUS_CONFIG.API_URL}/api/auth`,
     COURSES: `${EMINUS_CONFIG.API8_URL}/api/Course/getAllCourses`,
@@ -97,7 +102,7 @@ app.get('/login', (req, res) => {
     res.render('login', { redirect_uri, state, client_id });
 });
 
-app.post('/auth', async (req, res) => {
+app.post('/auth', (req, res) => {
     const { username, password, redirect_uri, state, client_id, remember } = req.body;
     
     try {
@@ -106,14 +111,9 @@ app.post('/auth', async (req, res) => {
         
         req.session.credentials = { username, password };
         req.session.cookie.maxAge = sessionDuration;
-        
-        // Para Implicit Grant, necesitamos obtener el token real de Eminus primero
-        const axios = require('axios');
-        const response = await axios.post(EMINUS_ENDPOINTS.AUTH, { username, password });
-        const accessToken = response.data.accessToken;
-        
-        // Redirigir con access_token en el hash (Implicit Grant)
-        res.redirect(`${redirect_uri}#access_token=${accessToken}&token_type=Bearer&expires_in=3600&state=${state}`);
+
+        const code = Buffer.from(`${username}:${password}`).toString('base64');
+        res.redirect(`${redirect_uri}?code=${code}&state=${state}`);
     } catch (error) {
         console.error('❌ Error en /auth:', error);
         res.status(500).json({ 
@@ -125,12 +125,19 @@ app.post('/auth', async (req, res) => {
 
 // -------- 2. Endpoint de autenticación real (token endpoint) --------
 app.post('/token', async (req, res) => {
-    const { grant_type, code } = req.body;
+    const { grant_type, code, client_id, client_secret } = req.body;
     
     if (grant_type !== 'authorization_code' || !code) {
         return res.status(400).json({ 
             error: 'invalid_grant',
             error_description: 'Grant type o código inválido'
+        });
+    }
+
+    if (client_id !== OAUTH_CONFIG.CLIENT_ID || client_secret !== OAUTH_CONFIG.CLIENT_SECRET) {
+        return res.status(401).json({ 
+            error: 'invalid_client',
+            error_description: 'Client ID o secret inválidos'
         });
     }
 
@@ -211,48 +218,6 @@ app.get('/session-status', (req, res) => {
         });
     } else {
         res.json({ authenticated: false });
-    }
-});
-
-// -------- 4. Token exchange endpoint (Alexa POST aquí) --------
-app.post('/token', bodyParser.urlencoded({ extended: false }), async (req, res) => {
-    const { code } = req.body;
-    const decoded = Buffer.from(code, 'base64').toString();
-    const [username, password] = decoded.split(':');
-    
-    if (!username || !password) {
-        res.status(400).json({ error: 'invalid_grant' });
-        return;
-    }
-    
-    try {
-        // Llamada real a la API de Eminus con credenciales hardcodeadas
-        const response = await axios.post(EMINUS_ENDPOINTS.AUTH, {
-            username: username,
-            password: password
-        });
-        
-        console.log('✅ Autenticación exitosa con Eminus para usuario:', username);
-        
-        res.json({
-            access_token: response.data.accessToken,
-            token_type: "Bearer",
-            expires_in: 3600
-        });
-    } catch (error) {
-        console.error('❌ Error en autenticación Eminus:', error.response?.data || error.message);
-        
-        if (error.response?.status === 401) {
-            res.status(401).json({ 
-                error: 'invalid_grant',
-                error_description: 'Credenciales inválidas en Eminus'
-            });
-        } else {
-            res.status(500).json({ 
-                error: 'server_error',
-                error_description: 'Error al conectar con Eminus API'
-            });
-        }
     }
 });
 
