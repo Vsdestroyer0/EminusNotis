@@ -10,8 +10,6 @@ const EMINUS_CONFIG = {
     BASE_URL: 'https://eminus.uv.mx',
     API_URL: 'https://eminus.uv.mx/eminusapi',
     API8_URL: 'https://eminus.uv.mx/eminusapi8',
-    USERNAME: 'zs23014164',
-    PASSWORD: 'Y1k8Z77e3Bt5Gz6NVvZ8qNuOy2WgLKnGHfRerpfP2ngfLP9QwrCmDb87C0G2Hk5J',
     SKILL_ID: 'amzn1.ask.skill.94d76127-fc68-40eb-979b-0a88e646b511'
 };
 
@@ -878,11 +876,6 @@ const skill = Alexa.SkillBuilders.custom()
 app.post('/skill', (req, res) => {
     console.log("[IN] Pedido Alexa:", JSON.stringify(req.body, null, 2));
     
-    // Para compatibilidad temporal, usamos credenciales hardcodeadas si no hay sesión
-    const tempReq = Object.assign({}, req, {
-        session: req.session || { credentials: { username: EMINUS_CONFIG.USERNAME, password: EMINUS_CONFIG.PASSWORD } }
-    });
-    
     skill.invoke(req.body)
         .then((responseBody) => res.json(responseBody))
         .catch((err) => {
@@ -891,30 +884,23 @@ app.post('/skill', (req, res) => {
         });
 });
 
-// -------- 5. Endpoint para verificar token (opcional) --------
+// -------- 9. Endpoint para verificar token (opcional) --------
 app.post('/verify-token', (req, res) => {
     const { accessToken } = req.body;
     
-    if (accessToken === "FAKE_ACCESS_TOKEN_EMINUS") {
-        res.json({ 
-            valid: true, 
-            username: "zs23014164",
-            message: "Token válido" 
-        });
-    } else {
-        res.status(401).json({ 
-            valid: false, 
-            message: "Token inválido" 
-        });
-    }
+    // Este endpoint ya no es necesario con el flujo OAuth2 real
+    res.status(410).json({ 
+        valid: false, 
+        message: 'Endpoint deprecated. Use OAuth2 flow instead.' 
+    });
 });
 
-// -------- 6. Página principal (mantenida por compatibilidad) --------
+// -------- 10. Página principal (mantenida por compatibilidad) --------
 app.get('/demo', (req, res) => {
-    res.send('Backend OAuth2 + Alexa Skill activo. DEMO hardcodeado.');
+    res.send('Backend OAuth2 + Alexa Skill con login dinámico activo.');
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`OAuth2 + Alexa Skill DEMO corriendo en el puerto ${PORT}`);
+    console.log(`OAuth2 + Alexa Skill con login dinámico corriendo en el puerto ${PORT}`);
 });
