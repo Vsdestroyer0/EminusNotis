@@ -357,7 +357,7 @@ const LaunchRequestHandler = {
         return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
     },
     handle(handlerInput) {
-        const speakOutput = "Bienvenido a Tareas Eminus. Puedes pedirme tus tareas pendientes.";
+        const speakOutput = "Bienvenido a Actividades Eminus. Puedes pedirme: Tareas pendientes o puedes preguntar por tus cursos favoritos y saber información específica sobre ellos.";
         return handlerInput.responseBuilder
             .speak(speakOutput)
             .reprompt("¿Qué deseas hacer?")
@@ -589,12 +589,12 @@ const InfoCursoIntentHandler = {
             attributes.cursoSeleccionado = cursoSeleccionado;
             handlerInput.attributesManager.setSessionAttributes(attributes);
 
-            const followUp = `¿Quieres saber algo más de ${cursoSeleccionado.nombre}? Puedes decir profesor, módulos, exámenes o actividades, o di salir para terminar.`;
+            const followUp = `¿Quieres saber algo más? Puedes decir profesor, módulos, exámenes o actividades, o di salir para terminar.`;
             const speakOutput = `${respuestaDetalle} ${followUp}`;
 
             return handlerInput.responseBuilder
                 .speak(speakOutput)
-                .reprompt(`Dime si quieres profesor, módulos, exámenes o actividades de ${cursoSeleccionado.nombre}.`)
+                .reprompt(`Dime si quieres profesor, módulos, exámenes o actividades del curso.`)
                 .getResponse();
         } catch (error) {
             console.error('❌ Error obteniendo información del curso:', error.response?.data || error.message);
