@@ -3,6 +3,7 @@ const bodyParser = require('body-parser');
 const axios = require('axios');
 const path = require('path');
 const Alexa = require('ask-sdk-core');
+const session = require('express-session');
 
 // Constantes de configuración
 const EMINUS_CONFIG = {
@@ -84,33 +85,89 @@ app.set('views', path.join(__dirname, 'views'));
 // Servir archivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
 
-// -------- 1. Endpoint de autorización simplificado (sin formulario) --------
-app.get('/authorize', (req, res) => {
-    const { redirect_uri, state } = req.query;
+// Middleware de sesión
+app.use(session({
+    secret: 'eminus-session-secret-2025',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 } // 24 horas
+}));
 
-    // Genera code con credenciales reales
-    const code = Buffer.from(`${EMINUS_CONFIG.USERNAME}:${EMINUS_CONFIG.PASSWORD}`).toString('base64');
-    res.redirect(`${redirect_uri}?code=${code}&state=${state}`);
+// -------- 1. Endpoint de login con formulario --------
+app.get('/login', (req, res) => {
+    const { redirect_uri, state, client_id } = req.query;
+    res.render('login', { redirect_uri, state, client_id });
 });
 
-// -------- 2. Endpoint de autenticación real --------
 app.post('/auth', async (req, res) => {
-    const { username, password, redirect_uri, state } = req.body;
+    const { username, password, redirect_uri, state, client_id } = req.body;
     
     try {
+        // Guardar credenciales en sesión
+        req.session.credentials = { username, password };
+        
+        // Generar code con credenciales reales
+        const code = Buffer.from(`${username}:${password}`).toString('base64');
+        res.redirect(`${redirect_uri}?code=${code}&state=${state}`);
+    } catch (error) {
+        console.error('❌ Error en /auth:', error);
+        res.status(500).json({ 
+            error: 'server_error',
+            error_description: 'Error al procesar credenciales'
+        });
+    }
+});
+
+// -------- 2. Endpoint de autenticación real (token endpoint) --------
+app.post('/token', async (req, res) => {
+    const { grant_type, code } = req.body;
+    
+    if (grant_type !== 'authorization_code' || !code) {
+        return res.status(400).json({ 
+            error: 'invalid_grant',
+            error_description: 'Grant type o código inválido'
+        });
+    }
+
+    try {
+        // Decodificar credenciales del code
+        const credentials = Buffer.from(code, 'base64').toString('utf-8');
+        const [username, password] = credentials.split(':');
+        
+        if (!username || !password) {
+            return res.status(400).json({ 
+                error: 'invalid_grant',
+                error_description: 'Código inválido'
+            });
+        }
+
         // Llamada a la API de Eminus
         const response = await axios.post(EMINUS_ENDPOINTS.AUTH, {
             username: username,
             password: password
         });
         
-        // Genera code con el token real de Eminus
-        const code = Buffer.from(`${username}:${response.data.accessToken}`).toString('base64');
-        res.redirect(`${redirect_uri}?code=${code}&state=${state}`);
+        console.log('✅ Autenticación exitosa con Eminus para usuario:', username);
         
+        res.json({
+            access_token: response.data.accessToken,
+            token_type: "Bearer",
+            expires_in: 3600
+        });
     } catch (error) {
-        console.error('Error en autenticación:', error.response?.data || error.message);
-        res.status(401).send('Credenciales inválidas');
+        console.error('❌ Error en autenticación Eminus:', error.response?.data || error.message);
+        
+        if (error.response?.status === 401) {
+            res.status(401).json({ 
+                error: 'invalid_grant',
+                error_description: 'Credenciales inválidas en Eminus'
+            });
+        } else {
+            res.status(500).json({ 
+                error: 'server_error',
+                error_description: 'Error al conectar con Eminus API'
+            });
+        }
     }
 });
 
@@ -119,9 +176,37 @@ app.get('/callback', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'callback.html'));
 });
 
-// -------- 3. Página principal --------
+// -------- 4. Página principal --------
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// -------- 5. Endpoint de logout --------
+app.post('/logout', (req, res) => {
+    if (req.session) {
+        req.session.destroy(err => {
+            if (err) {
+                console.error('❌ Error destruyendo sesión:', err);
+                return res.status(500).json({ error: 'Error al cerrar sesión' });
+            }
+            res.clearCookie('connect.sid');
+            res.json({ success: true, message: 'Sesión cerrada correctamente' });
+        });
+    } else {
+        res.json({ success: true, message: 'No había sesión activa' });
+    }
+});
+
+// -------- 6. Endpoint para verificar sesión --------
+app.get('/session-status', (req, res) => {
+    if (req.session && req.session.credentials) {
+        res.json({ 
+            authenticated: true, 
+            username: req.session.credentials.username 
+        });
+    } else {
+        res.json({ authenticated: false });
+    }
 });
 
 // -------- 4. Token exchange endpoint (Alexa POST aquí) --------
@@ -166,19 +251,24 @@ app.post('/token', bodyParser.urlencoded({ extended: false }), async (req, res) 
     }
 });
 
-// -------- 3. Alexa Skill Handlers --------
+// -------- 7. Alexa Skill Handlers --------
 
-// Helper function para autenticación con Eminus
+// Helper function para autenticación con Eminus (usando sesión)
 async function authenticateWithEminus() {
+    throw new Error('Use authenticateWithEminusSession(req) instead');
+}
+
+// Helper para autenticación usando credenciales de sesión
+async function authenticateWithEminusSession(req) {
+    if (!req.session || !req.session.credentials) {
+        throw new Error('No hay credenciales guardadas en la sesión');
+    }
     const axios = require('axios');
+    const { username, password } = req.session.credentials;
     
     try {
-        const response = await axios.post(EMINUS_ENDPOINTS.AUTH, {
-            username: EMINUS_CONFIG.USERNAME,
-            password: EMINUS_CONFIG.PASSWORD
-        });
-        
-        console.log('✅ Autenticación exitosa con Eminus');
+        const response = await axios.post(EMINUS_ENDPOINTS.AUTH, { username, password });
+        console.log(`✅ Autenticación exitosa con Eminus para usuario: ${username}`);
         return response.data.accessToken;
     } catch (error) {
         console.error('❌ Error en autenticación Eminus:', error.response?.data || error.message);
@@ -777,9 +867,15 @@ const skill = Alexa.SkillBuilders.custom()
 )
 .create();
 
-// Endpoint de la skill que Alexa invoca
+// -------- 8. Endpoint de la skill que Alexa invoca --------
 app.post('/skill', (req, res) => {
     console.log("[IN] Pedido Alexa:", JSON.stringify(req.body, null, 2));
+    
+    // Para compatibilidad temporal, usamos credenciales hardcodeadas si no hay sesión
+    const tempReq = Object.assign({}, req, {
+        session: req.session || { credentials: { username: EMINUS_CONFIG.USERNAME, password: EMINUS_CONFIG.PASSWORD } }
+    });
+    
     skill.invoke(req.body)
         .then((responseBody) => res.json(responseBody))
         .catch((err) => {
