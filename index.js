@@ -126,8 +126,23 @@ app.post('/auth', (req, res) => {
 
 // -------- 2. Endpoint de autenticación real (token endpoint) --------
 app.post('/token', async (req, res) => {
-    const { grant_type, code, client_id, client_secret } = req.body;
-    
+    console.log('➡️ /token solicitud:', req.body);
+    const { grant_type, code } = req.body;
+    let client_id = req.body.client_id;
+    let client_secret = req.body.client_secret;
+
+    // Permitir esquema HTTP Basic (Authorization: Basic base64(client_id:secret))
+    if ((!client_id || !client_secret) && req.headers.authorization) {
+        const authHeader = req.headers.authorization;
+        if (authHeader.startsWith('Basic ')) {
+            const base64Credentials = authHeader.split(' ')[1];
+            const decoded = Buffer.from(base64Credentials, 'base64').toString('utf-8');
+            const [basicId, basicSecret] = decoded.split(':');
+            client_id = client_id || basicId;
+            client_secret = client_secret || basicSecret;
+        }
+    }
+
     if (grant_type !== 'authorization_code' || !code) {
         return res.status(400).json({ 
             error: 'invalid_grant',
