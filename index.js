@@ -104,14 +104,18 @@ app.post('/auth', async (req, res) => {
     
     try {
         // Guardar credenciales en sesión con duración extendida si se seleccionó "recordarme"
-        const sessionDuration = remember ? 180 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000; // 30 días o 24 horas
+        const sessionDuration = remember ? 180 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000; // 180 días o 24 horas
         
         req.session.credentials = { username, password };
         req.session.cookie.maxAge = sessionDuration;
         
-        // Generar code con credenciales reales
-        const code = Buffer.from(`${username}:${password}`).toString('base64');
-        res.redirect(`${redirect_uri}?code=${code}&state=${state}`);
+        // Para Implicit Grant, necesitamos obtener el token real de Eminus primero
+        const axios = require('axios');
+        const response = await axios.post(EMINUS_ENDPOINTS.AUTH, { username, password });
+        const accessToken = response.data.accessToken;
+        
+        // Redirigir con access_token en el hash (Implicit Grant)
+        res.redirect(`${redirect_uri}#access_token=${accessToken}&token_type=Bearer&expires_in=3600&state=${state}`);
     } catch (error) {
         console.error('❌ Error en /auth:', error);
         res.status(500).json({ 
